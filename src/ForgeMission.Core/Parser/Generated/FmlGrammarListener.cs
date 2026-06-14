@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-// Generated from /Users/ameerdeen/progs/fml/src/ForgeMission.Core/Parser/FmlGrammar.g4 by ANTLR 4.13.1
+// Generated from src/ForgeMission.Core/Parser/FmlGrammar.g4 by ANTLR 4.13.1
 
 // Unreachable code detected
 #pragma warning disable 0162
@@ -42,6 +42,16 @@ public interface IFmlGrammarListener : IParseTreeListener {
 	/// <param name="context">The parse tree.</param>
 	void ExitProgram([NotNull] FmlGrammarParser.ProgramContext context);
 	/// <summary>
+	/// Enter a parse tree produced by <see cref="FmlGrammarParser.letBinding"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterLetBinding([NotNull] FmlGrammarParser.LetBindingContext context);
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="FmlGrammarParser.letBinding"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitLetBinding([NotNull] FmlGrammarParser.LetBindingContext context);
+	/// <summary>
 	/// Enter a parse tree produced by <see cref="FmlGrammarParser.declaration"/>.
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
@@ -72,6 +82,16 @@ public interface IFmlGrammarListener : IParseTreeListener {
 	/// <param name="context">The parse tree.</param>
 	void ExitExpert([NotNull] FmlGrammarParser.ExpertContext context);
 	/// <summary>
+	/// Enter a parse tree produced by <see cref="FmlGrammarParser.params"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterParams([NotNull] FmlGrammarParser.ParamsContext context);
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="FmlGrammarParser.params"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitParams([NotNull] FmlGrammarParser.ParamsContext context);
+	/// <summary>
 	/// Enter a parse tree produced by <see cref="FmlGrammarParser.pipeline"/>.
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
@@ -91,5 +111,45 @@ public interface IFmlGrammarListener : IParseTreeListener {
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	void ExitStep([NotNull] FmlGrammarParser.StepContext context);
+	/// <summary>
+	/// Enter a parse tree produced by <see cref="FmlGrammarParser.withClause"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterWithClause([NotNull] FmlGrammarParser.WithClauseContext context);
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="FmlGrammarParser.withClause"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitWithClause([NotNull] FmlGrammarParser.WithClauseContext context);
+	/// <summary>
+	/// Enter a parse tree produced by <see cref="FmlGrammarParser.binding"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterBinding([NotNull] FmlGrammarParser.BindingContext context);
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="FmlGrammarParser.binding"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitBinding([NotNull] FmlGrammarParser.BindingContext context);
+	/// <summary>
+	/// Enter a parse tree produced by <see cref="FmlGrammarParser.value"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterValue([NotNull] FmlGrammarParser.ValueContext context);
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="FmlGrammarParser.value"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitValue([NotNull] FmlGrammarParser.ValueContext context);
+	/// <summary>
+	/// Enter a parse tree produced by <see cref="FmlGrammarParser.envCall"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterEnvCall([NotNull] FmlGrammarParser.EnvCallContext context);
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="FmlGrammarParser.envCall"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitEnvCall([NotNull] FmlGrammarParser.EnvCallContext context);
 }
 } // namespace ForgeMission.Core.Parser

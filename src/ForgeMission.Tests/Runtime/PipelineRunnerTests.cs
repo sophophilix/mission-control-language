@@ -33,7 +33,7 @@ public class PipelineRunnerTests : IDisposable
     }
 
     [Fact]
-    public async Task MultiStep_PassesContextForward()
+    public async Task MultiStep_PassesOutputForward()
     {
         var ast = FmlParser.Parse("""
             mission BuildOperator =
@@ -42,16 +42,20 @@ public class PipelineRunnerTests : IDisposable
                 |> PrincipalReviewer
             """);
 
-        var stub = new StubExpertRunner((name, ctx) => $"Output from {name} given [{ctx}]");
+        var stub = new StubExpertRunner((name, ctx) =>
+            $"Output from {name} given [{ctx["output"]}]");
         var runner = new PipelineRunner(stub);
         var options = new PipelineRunOptions("BuildOperator", "initial input", _outDir);
 
         await runner.RunAsync(ast, Experts("KubernetesArchitect", "SecurityArchitect", "PrincipalReviewer"), options);
 
         Assert.Equal(3, stub.Calls.Count);
-        Assert.Equal("initial input",                                  stub.Calls[0].Context);
-        Assert.Equal("Output from KubernetesArchitect given [initial input]", stub.Calls[1].Context);
-        Assert.Equal("Output from SecurityArchitect given [Output from KubernetesArchitect given [initial input]]", stub.Calls[2].Context);
+        Assert.Equal("initial input",
+            stub.Calls[0].Context["output"].ToString());
+        Assert.Equal("Output from KubernetesArchitect given [initial input]",
+            stub.Calls[1].Context["output"].ToString());
+        Assert.Equal("Output from SecurityArchitect given [Output from KubernetesArchitect given [initial input]]",
+            stub.Calls[2].Context["output"].ToString());
     }
 
     [Fact]
@@ -109,5 +113,71 @@ public class PipelineRunnerTests : IDisposable
                 .RunAsync(ast, Experts("KubernetesArchitect", "SecurityArchitect"),
                           new PipelineRunOptions("BuildOperator", "input", _outDir),
                           cts.Token));
+    }
+
+    [Fact]
+    public async Task LetBindings_SeedContext()
+    {
+        var ast = FmlParser.Parse("""
+            let goal = "Design a K8s operator"
+            mission BuildOperator = KubernetesArchitect
+            """);
+
+        var stub = new StubExpertRunner();
+        await new PipelineRunner(stub)
+            .RunAsync(ast, Experts("KubernetesArchitect"),
+                      new PipelineRunOptions("BuildOperator", "input", _outDir));
+
+        Assert.Equal("Design a K8s operator", stub.Calls[0].Context["goal"].ToString());
+    }
+
+    [Fact]
+    public async Task WithClause_OverridesContextForStep()
+    {
+        var ast = FmlParser.Parse("""
+            mission BuildOperator =
+                KubernetesArchitect with { style = "terse" }
+            """);
+
+        var stub = new StubExpertRunner();
+        await new PipelineRunner(stub)
+            .RunAsync(ast, Experts("KubernetesArchitect"),
+                      new PipelineRunOptions("BuildOperator", "input", _outDir));
+
+        Assert.Equal("terse", stub.Calls[0].Context["style"].ToString());
+    }
+
+    [Fact]
+    public async Task VarFlag_OverridesLetBinding()
+    {
+        var ast = FmlParser.Parse("""
+            let goal = "original"
+            mission BuildOperator = KubernetesArchitect
+            """);
+
+        var stub = new StubExpertRunner();
+        var vars = new Dictionary<string, string> { ["goal"] = "overridden" };
+        await new PipelineRunner(stub)
+            .RunAsync(ast, Experts("KubernetesArchitect"),
+                      new PipelineRunOptions("BuildOperator", "input", _outDir, vars));
+
+        Assert.Equal("overridden", stub.Calls[0].Context["goal"].ToString());
+    }
+
+    [Fact]
+    public void MissingEnvVar_ThrowsClearly()
+    {
+        var ast = FmlParser.Parse("""
+            let apiKey = env("FMLTEST_MISSING_VAR_XYZ")
+            mission BuildOperator = KubernetesArchitect
+            """);
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            new PipelineRunner(new StubExpertRunner())
+                .RunAsync(ast, Experts("KubernetesArchitect"),
+                          new PipelineRunOptions("BuildOperator", "input", _outDir))
+                .GetAwaiter().GetResult());
+
+        Assert.Contains("FMLTEST_MISSING_VAR_XYZ", ex.Message);
     }
 }

@@ -19,15 +19,22 @@ return await rootCommand.Parse(args).InvokeAsync();
 static Command BuildRunCommand()
 {
     var missionArg = new Argument<FileInfo>("mission") { Description = "Path to the .fml mission file" };
-    var inputOpt   = new Option<FileInfo>("--input") { Description = "Path to the input markdown file", Required = true };
+    var inputOpt   = new Option<FileInfo>("--input")   { Description = "Path to the input markdown file", Required = true };
     var expertsOpt = new Option<DirectoryInfo?>("--experts") { Description = "Experts directory (default: <mission-dir>/experts)" };
-    var outputOpt  = new Option<DirectoryInfo?>("--output") { Description = "Output directory (default: ./runs)" };
+    var outputOpt  = new Option<DirectoryInfo?>("--output")  { Description = "Output directory (default: ./runs)" };
+    var varOpt     = new Option<string[]>("--var")
+    {
+        Description  = "Set a context variable as key=value (repeatable, overrides let bindings)",
+        AllowMultipleArgumentsPerToken = false
+    };
+    varOpt.Arity = ArgumentArity.ZeroOrMore;
 
     var cmd = new Command("run", "Run a mission against an input");
     cmd.Add(missionArg);
     cmd.Add(inputOpt);
     cmd.Add(expertsOpt);
     cmd.Add(outputOpt);
+    cmd.Add(varOpt);
 
     cmd.SetAction(async result =>
     {
@@ -35,9 +42,13 @@ static Command BuildRunCommand()
         var input    = result.GetValue(inputOpt)!;
         var experts  = result.GetValue(expertsOpt);
         var output   = result.GetValue(outputOpt);
+        var vars     = result.GetValue(varOpt) ?? [];
 
         var expertsDir = experts?.FullName ?? Path.Combine(mission.DirectoryName!, "experts");
         var outputDir  = output?.FullName ?? "runs";
+
+        var parsedVars = ParseVars(vars);
+        if (parsedVars is null) return;
 
         var source = await TryReadFile(mission.FullName);
         if (source is null) return;
@@ -59,7 +70,7 @@ static Command BuildRunCommand()
         var firstMission = ast.Declarations.OfType<MissionDeclaration>().FirstOrDefault();
         if (firstMission is null) { Die("No mission declaration found in mission file."); return; }
 
-        var options = new PipelineRunOptions(firstMission.Name, inputText, outputDir);
+        var options = new PipelineRunOptions(firstMission.Name, inputText, outputDir, parsedVars);
         Console.WriteLine($"Running mission '{firstMission.Name}'...");
 
         await new PipelineRunner(runner).RunAsync(ast, expertDefs, options);
@@ -164,6 +175,22 @@ static IExpertRunner? TryBuildRunner()
     if (string.IsNullOrWhiteSpace(apiKey)) { Die("OPENAI_API_KEY environment variable is not set."); return null; }
     var chatClient = new OpenAIClient(apiKey).GetChatClient("gpt-4o-mini").AsIChatClient();
     return new MafExpertRunner(chatClient);
+}
+
+static Dictionary<string, string>? ParseVars(string[] vars)
+{
+    var result = new Dictionary<string, string>(StringComparer.Ordinal);
+    foreach (var v in vars)
+    {
+        var idx = v.IndexOf('=');
+        if (idx <= 0)
+        {
+            Die($"Invalid --var value '{v}': expected key=value format.");
+            return null;
+        }
+        result[v[..idx]] = v[(idx + 1)..];
+    }
+    return result;
 }
 
 static void Die(string message)

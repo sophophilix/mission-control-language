@@ -14,43 +14,96 @@ public class PipelineRunner(IExpertRunner expertRunner)
         var mission = ast.Declarations
             .OfType<MissionDeclaration>()
             .FirstOrDefault(m => m.Name == options.MissionName)
-            ?? throw new InvalidOperationException($"Mission '{options.MissionName}' not found in .fml file");
+            ?? throw new InvalidOperationException(
+                $"Mission '{options.MissionName}' not found in .fml file");
+
+        var context = SeedContext(ast, options);
 
         var steps = Flatten(mission.Pipeline, ast);
 
         var runDir = Path.Combine(options.OutputDirectory, options.MissionName);
         Directory.CreateDirectory(runDir);
 
-        var context = options.InputText;
         var stepNumber = 1;
 
-        foreach (var stepName in steps)
+        foreach (var step in steps)
         {
             ct.ThrowIfCancellationRequested();
 
-            if (!experts.TryGetValue(stepName, out var expert))
+            if (!experts.TryGetValue(step.ExpertName, out var expert))
                 throw new InvalidOperationException(
-                    $"Expert '{stepName}' not found. Run 'fml validate' to check your mission before running.");
+                    $"Expert '{step.ExpertName}' not found. " +
+                    "Run 'fml validate' to check your mission before running.");
+
+            // Merge step-level with-clause bindings into context
+            foreach (var binding in step.With)
+                context[binding.Key] = ResolveBindingValue(binding.Value, context);
 
             var output = await expertRunner.RunAsync(expert, context, ct);
 
-            var filename = $"{stepNumber:D2}-{stepName}.md";
+            var filename = $"{stepNumber:D2}-{step.ExpertName}.md";
             await File.WriteAllTextAsync(Path.Combine(runDir, filename), output, ct);
 
-            context = output;
+            context["output"] = output;
             stepNumber++;
         }
 
-        await File.WriteAllTextAsync(Path.Combine(runDir, "final.md"), context, ct);
+        var final = context.TryGetValue("output", out var last) ? last.ToString()! : string.Empty;
+        await File.WriteAllTextAsync(Path.Combine(runDir, "final.md"), final, ct);
     }
 
-    private static List<string> Flatten(Pipeline pipeline, Program ast)
+    private static Dictionary<string, object> SeedContext(Program ast, PipelineRunOptions options)
+    {
+        var context = new Dictionary<string, object>(StringComparer.Ordinal);
+
+        // Resolve let bindings (env() calls happen here at runtime)
+        foreach (var binding in ast.Bindings)
+            context[binding.Name] = ResolveLetValue(binding.Value, binding.Name);
+
+        // Seed initial user input as "output" (the chained result key)
+        context["output"] = options.InputText;
+
+        // --var CLI flags override let bindings
+        if (options.Vars is { } vars)
+            foreach (var (key, value) in vars)
+                context[key] = value;
+
+        return context;
+    }
+
+    private static string ResolveLetValue(LetValue value, string bindingName) => value switch
+    {
+        StringLetValue v => v.Text,
+        EnvLetValue v    => ResolveEnv(v.VarName, v.DefaultValue, bindingName),
+        _                => throw new InvalidOperationException($"Unknown let value type for '{bindingName}'")
+    };
+
+    private static string ResolveEnv(string varName, string? defaultValue, string bindingName)
+    {
+        var val = Environment.GetEnvironmentVariable(varName);
+        if (val is not null) return val;
+        if (defaultValue is not null) return defaultValue;
+        throw new InvalidOperationException(
+            $"Required environment variable '{varName}' (used by let binding '{bindingName}') is not set.");
+    }
+
+    private static string ResolveBindingValue(BindingValue value, Dictionary<string, object> context) => value switch
+    {
+        StringBindingValue v => v.Text,
+        VarRefBindingValue v => context.TryGetValue(v.Name, out var ctx)
+            ? ctx.ToString()!
+            : throw new InvalidOperationException($"Variable '{v.Name}' not found in context"),
+        EnvBindingValue v    => ResolveEnv(v.VarName, v.DefaultValue, v.VarName),
+        _                    => throw new InvalidOperationException("Unknown binding value type")
+    };
+
+    private static List<Step> Flatten(Pipeline pipeline, Program ast)
     {
         var expertDecls = ast.Declarations
             .OfType<ExpertDeclaration>()
             .ToDictionary(e => e.Name, StringComparer.Ordinal);
 
-        var result = new List<string>();
+        var result = new List<Step>();
         foreach (var step in pipeline.Steps)
             FlattenStep(step, expertDecls, result, []);
 
@@ -58,22 +111,24 @@ public class PipelineRunner(IExpertRunner expertRunner)
     }
 
     private static void FlattenStep(
-        string name,
+        Step step,
         Dictionary<string, ExpertDeclaration> decls,
-        List<string> result,
+        List<Step> result,
         HashSet<string> visited)
     {
-        if (!visited.Add(name))
-            throw new InvalidOperationException($"Circular expert reference detected: '{name}'");
+        if (!visited.Add(step.ExpertName))
+            throw new InvalidOperationException(
+                $"Circular expert reference detected: '{step.ExpertName}'");
 
-        if (decls.TryGetValue(name, out var decl))
+        if (decls.TryGetValue(step.ExpertName, out var decl))
         {
-            foreach (var step in decl.Pipeline.Steps)
-                FlattenStep(step, decls, result, new HashSet<string>(visited, StringComparer.Ordinal));
+            // Composite expert — expand its pipeline; with-clause from parent step is dropped
+            foreach (var inner in decl.Pipeline.Steps)
+                FlattenStep(inner, decls, result, new HashSet<string>(visited, StringComparer.Ordinal));
         }
         else
         {
-            result.Add(name);
+            result.Add(step);
         }
     }
 }

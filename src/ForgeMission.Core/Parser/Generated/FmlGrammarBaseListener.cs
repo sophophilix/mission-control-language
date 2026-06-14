@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-// Generated from /Users/ameerdeen/progs/fml/src/ForgeMission.Core/Parser/FmlGrammar.g4 by ANTLR 4.13.1
+// Generated from src/ForgeMission.Core/Parser/FmlGrammar.g4 by ANTLR 4.13.1
 
 // Unreachable code detected
 #pragma warning disable 0162
@@ -49,6 +49,18 @@ public partial class FmlGrammarBaseListener : IFmlGrammarListener {
 	/// <param name="context">The parse tree.</param>
 	public virtual void ExitProgram([NotNull] FmlGrammarParser.ProgramContext context) { }
 	/// <summary>
+	/// Enter a parse tree produced by <see cref="FmlGrammarParser.letBinding"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterLetBinding([NotNull] FmlGrammarParser.LetBindingContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="FmlGrammarParser.letBinding"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitLetBinding([NotNull] FmlGrammarParser.LetBindingContext context) { }
+	/// <summary>
 	/// Enter a parse tree produced by <see cref="FmlGrammarParser.declaration"/>.
 	/// <para>The default implementation does nothing.</para>
 	/// </summary>
@@ -85,6 +97,18 @@ public partial class FmlGrammarBaseListener : IFmlGrammarListener {
 	/// <param name="context">The parse tree.</param>
 	public virtual void ExitExpert([NotNull] FmlGrammarParser.ExpertContext context) { }
 	/// <summary>
+	/// Enter a parse tree produced by <see cref="FmlGrammarParser.params"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterParams([NotNull] FmlGrammarParser.ParamsContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="FmlGrammarParser.params"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitParams([NotNull] FmlGrammarParser.ParamsContext context) { }
+	/// <summary>
 	/// Enter a parse tree produced by <see cref="FmlGrammarParser.pipeline"/>.
 	/// <para>The default implementation does nothing.</para>
 	/// </summary>
@@ -108,6 +132,54 @@ public partial class FmlGrammarBaseListener : IFmlGrammarListener {
 	/// </summary>
 	/// <param name="context">The parse tree.</param>
 	public virtual void ExitStep([NotNull] FmlGrammarParser.StepContext context) { }
+	/// <summary>
+	/// Enter a parse tree produced by <see cref="FmlGrammarParser.withClause"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterWithClause([NotNull] FmlGrammarParser.WithClauseContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="FmlGrammarParser.withClause"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitWithClause([NotNull] FmlGrammarParser.WithClauseContext context) { }
+	/// <summary>
+	/// Enter a parse tree produced by <see cref="FmlGrammarParser.binding"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterBinding([NotNull] FmlGrammarParser.BindingContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="FmlGrammarParser.binding"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitBinding([NotNull] FmlGrammarParser.BindingContext context) { }
+	/// <summary>
+	/// Enter a parse tree produced by <see cref="FmlGrammarParser.value"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterValue([NotNull] FmlGrammarParser.ValueContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="FmlGrammarParser.value"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitValue([NotNull] FmlGrammarParser.ValueContext context) { }
+	/// <summary>
+	/// Enter a parse tree produced by <see cref="FmlGrammarParser.envCall"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterEnvCall([NotNull] FmlGrammarParser.EnvCallContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="FmlGrammarParser.envCall"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitEnvCall([NotNull] FmlGrammarParser.EnvCallContext context) { }
 
 	/// <inheritdoc/>
 	/// <remarks>The default implementation does nothing.</remarks>

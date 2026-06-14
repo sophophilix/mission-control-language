@@ -3,7 +3,11 @@ grammar FmlGrammar;
 // Parser rules
 
 program
-    : declaration* EOF
+    : (letBinding | declaration)* EOF
+    ;
+
+letBinding
+    : LET LOWER_ID EQUALS value
     ;
 
 declaration
@@ -12,11 +16,15 @@ declaration
     ;
 
 mission
-    : MISSION UPPER_ID EQUALS pipeline
+    : MISSION UPPER_ID params? EQUALS pipeline
     ;
 
 expert
-    : EXPERT UPPER_ID EQUALS pipeline
+    : EXPERT UPPER_ID params? EQUALS pipeline
+    ;
+
+params
+    : LPAREN LOWER_ID (COMMA LOWER_ID)* RPAREN
     ;
 
 pipeline
@@ -24,15 +32,41 @@ pipeline
     ;
 
 step
-    : UPPER_ID
+    : UPPER_ID withClause?
     ;
 
-// Lexer rules
+withClause
+    : WITH LBRACE binding (COMMA binding)* RBRACE
+    ;
 
+binding
+    : LOWER_ID EQUALS value
+    ;
+
+value
+    : STRING
+    | LOWER_ID
+    | envCall
+    ;
+
+envCall
+    : ENV LPAREN STRING (COMMA STRING)? RPAREN
+    ;
+
+// Lexer rules — keywords before LOWER_ID so they take priority
+
+LET     : 'let'     ;
 MISSION : 'mission' ;
 EXPERT  : 'expert'  ;
+WITH    : 'with'    ;
+ENV     : 'env'     ;
 PIPE    : '|>'      ;
 EQUALS  : '='       ;
+LPAREN  : '('       ;
+RPAREN  : ')'       ;
+LBRACE  : '{'       ;
+RBRACE  : '}'       ;
+COMMA   : ','       ;
 
 UPPER_ID
     : [A-Z][a-zA-Z0-9]*
@@ -40,6 +74,10 @@ UPPER_ID
 
 LOWER_ID
     : [a-z][a-zA-Z0-9]*
+    ;
+
+STRING
+    : '"' (~["\r\n])* '"'
     ;
 
 WS

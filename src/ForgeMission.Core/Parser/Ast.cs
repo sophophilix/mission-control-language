@@ -1,11 +1,28 @@
 namespace ForgeMission.Core.Parser;
 
-public record Program(IReadOnlyList<Declaration> Declarations);
+public record Program(IReadOnlyList<LetBinding> Bindings, IReadOnlyList<Declaration> Declarations);
+
+public record LetBinding(string Name, LetValue Value);
+
+public abstract record LetValue;
+public record StringLetValue(string Text) : LetValue;
+public record EnvLetValue(string VarName, string? DefaultValue) : LetValue;
 
 public abstract record Declaration(string Name);
 
-public record MissionDeclaration(string Name, Pipeline Pipeline) : Declaration(Name);
+public record MissionDeclaration(string Name, IReadOnlyList<string> Params, Pipeline Pipeline)
+    : Declaration(Name);
 
-public record ExpertDeclaration(string Name, Pipeline Pipeline) : Declaration(Name);
+public record ExpertDeclaration(string Name, IReadOnlyList<string> Params, Pipeline Pipeline)
+    : Declaration(Name);
 
-public record Pipeline(IReadOnlyList<string> Steps);
+public record Pipeline(IReadOnlyList<Step> Steps);
+
+public record Step(string ExpertName, IReadOnlyList<Binding> With);
+
+public abstract record BindingValue;
+public record StringBindingValue(string Text) : BindingValue;
+public record VarRefBindingValue(string Name) : BindingValue;
+public record EnvBindingValue(string VarName, string? DefaultValue) : BindingValue;
+
+public record Binding(string Key, BindingValue Value);

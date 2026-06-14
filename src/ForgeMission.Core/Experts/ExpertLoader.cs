@@ -34,17 +34,25 @@ public class ExpertLoader(string expertsDirectory)
             .Select(e => e.Name)
             .ToHashSet(StringComparer.Ordinal);
 
+        // Mission params are variable names, not expert names — exclude them from validation
+        var missionParams = ast.Declarations
+            .OfType<MissionDeclaration>()
+            .SelectMany(m => m.Params)
+            .ToHashSet(StringComparer.Ordinal);
+
         var allSteps = ast.Declarations
             .SelectMany(d => d switch
             {
-                MissionDeclaration m => m.Pipeline.Steps,
-                ExpertDeclaration e  => e.Pipeline.Steps,
-                _                    => []
+                MissionDeclaration m => m.Pipeline.Steps.Select(s => s.ExpertName),
+                ExpertDeclaration e  => e.Pipeline.Steps.Select(s => s.ExpertName),
+                _                    => Enumerable.Empty<string>()
             })
             .Distinct(StringComparer.Ordinal);
 
         var missing = allSteps
-            .Where(step => !declaredInAst.Contains(step) && !experts.ContainsKey(step))
+            .Where(step => !declaredInAst.Contains(step)
+                        && !experts.ContainsKey(step)
+                        && !missionParams.Contains(step))
             .OrderBy(s => s)
             .ToList();
 

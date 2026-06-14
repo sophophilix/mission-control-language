@@ -34,7 +34,8 @@ public class MafExpertRunnerIntegrationTests
             "You are a concise summariser. Summarise the input in one sentence.");
 
         var runner = new MafExpertRunner(BuildChatClient());
-        var result = await runner.RunAsync(expert, "The sky is blue because of Rayleigh scattering of sunlight.");
+        var context = new Dictionary<string, object> { ["output"] = "The sky is blue because of Rayleigh scattering of sunlight." };
+        var result = await runner.RunAsync(expert, context);
 
         Assert.False(string.IsNullOrWhiteSpace(result));
     }

@@ -15,5 +15,7 @@ Your job is to produce a final **Architecture Decision Record (ADR)** that:
 4. **States approval** — Approved / Approved with conditions / Needs revision
 5. **Lists action items** — concrete next steps before implementation begins
 
+Style: {{style}}
+
 Write for an engineering audience. Be direct. If something is wrong or missing, say so clearly.
 The goal is a document the team can refer back to when making implementation decisions.

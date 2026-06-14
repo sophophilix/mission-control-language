@@ -11,11 +11,20 @@ namespace ForgeMission.Core.Adapters;
 /// </summary>
 public class MafExpertRunner(IChatClient chatClient) : IExpertRunner
 {
-    public async Task<string> RunAsync(ExpertDefinition expert, string context, CancellationToken ct = default)
+    public async Task<string> RunAsync(
+        ExpertDefinition expert,
+        Dictionary<string, object> context,
+        CancellationToken ct = default)
     {
-        var agent = new ChatClientAgent(chatClient, expert.SystemPrompt, expert.Name);
+        var userMessage = context.TryGetValue("output", out var output)
+            ? output.ToString()!
+            : string.Empty;
+
+        var systemPrompt = ContextInterpolator.Interpolate(expert.SystemPrompt, context);
+
+        var agent   = new ChatClientAgent(chatClient, systemPrompt, expert.Name);
         var session = await agent.CreateSessionAsync(ct);
-        var response = await agent.RunAsync(context, session, new ChatClientAgentRunOptions(), ct);
+        var response = await agent.RunAsync(userMessage, session, new ChatClientAgentRunOptions(), ct);
         return response.Text;
     }
 }

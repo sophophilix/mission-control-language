@@ -42,94 +42,88 @@ This keeps secrets out of source files and out of the context bag's string repre
 Variable resolution order (lowest → highest precedence):
 
 1. `let` binding (includes `env()` calls)
-2. Mission parameter binding
-3. `with { }` clause on a step
-4. `--var key=value` CLI flag
+2. Mission parameter binding (parsed names, available via context)
+3. `with { }` clause on a step (merges into context before that step runs)
+4. `--var key=value` CLI flag (overrides everything at seeding time)
 
-## Grammar changes (delta from Phase 8 `FmlGrammar.g4`)
+## Grammar changes
 
 ```antlr
 program    : (letBinding | declaration)* EOF ;
-
-letBinding : 'let' LOWER_ID '=' STRING ;
-
+letBinding : 'let' LOWER_ID '=' value ;
 mission    : 'mission' UPPER_ID params? '=' pipeline ;
 expert     : 'expert' UPPER_ID params? '=' pipeline ;
-
 params     : '(' LOWER_ID (',' LOWER_ID)* ')' ;
-
 pipeline   : step ('|>' step)* ;
 step       : UPPER_ID withClause? ;
-
 withClause : 'with' '{' binding (',' binding)* '}' ;
 binding    : LOWER_ID '=' value ;
 value      : STRING | LOWER_ID | envCall ;
 envCall    : 'env' '(' STRING (',' STRING)? ')' ;
-
-LOWER_ID   : [a-z][a-zA-Z0-9]* ;
 STRING     : '"' (~["\r\n])* '"' ;
 ```
 
+See [`src/ForgeMission.Core/Parser/FmlGrammar.g4`](../../src/ForgeMission.Core/Parser/FmlGrammar.g4)
+for the authoritative grammar.
+
 ## AST changes
 
-- New `LetBinding(string Name, string Value)` node
 - `Program` gains `IReadOnlyList<LetBinding> Bindings`
+- `LetBinding(string Name, LetValue Value)` — value is `StringLetValue` or `EnvLetValue`
 - `MissionDeclaration` gains `IReadOnlyList<string> Params`
+- `ExpertDeclaration` gains `IReadOnlyList<string> Params`
 - `Pipeline.Steps` changes from `IReadOnlyList<string>` to `IReadOnlyList<Step>`
-- New `Step(string ExpertName, IReadOnlyList<Binding> With)` — `With` is empty list when no clause
-- New `Binding(string Key, string Value)` — value is either a string literal or a variable reference
+- `Step(string ExpertName, IReadOnlyList<Binding> With)` — `With` is empty when no clause
+- `Binding(string Key, BindingValue Value)` — value is `StringBindingValue`, `VarRefBindingValue`, or `EnvBindingValue`
 
 ## Runtime changes
 
-The context carrier changes from `string` to `Dictionary<string, object>`:
+- Context carrier: `string` → `Dictionary<string, object>` (keyed by `StringComparer.Ordinal`)
+- `"output"` key carries the chained result between steps
+- `ContextInterpolator.Interpolate(template, context)` — `{{key}}` substitution
+- `PipelineRunOptions` gains `IReadOnlyDictionary<string, string>? Vars` for CLI overrides
+- `PipelineRunner` seeds context from let bindings, resolves `env()`, applies `--var` overrides,
+  merges `with` clause per step, interpolates system prompt before each expert call
+- `IExpertRunner.RunAsync` signature changed: second param is `Dictionary<string, object>`
+- `MafExpertRunner` extracts `context["output"]` as the user message; interpolates system prompt
 
-```csharp
-// seeded at mission start
-var context = new Dictionary<string, object>();
-foreach (var binding in ast.Bindings)
-    context[binding.Name] = binding.Value;
+## CLI changes
 
-// per step: merge with-clause bindings, interpolate, run
-foreach (var step in flattenedSteps)
-{
-    foreach (var b in step.With)
-        context[b.Key] = Resolve(b.Value, context);
-
-    var prompt = Interpolate(expert.SystemPrompt, context);
-    var result = await runner.RunAsync(expert with { SystemPrompt = prompt }, (string)context["output"], ct);
-    context["output"] = result;
-}
-```
-
-`Interpolate` replaces `{{key}}` occurrences in system prompts with values from the context bag.
+- `fml run` gains `--var key=value` (repeatable) to inject variables at call time
 
 ## Tasks
 
 | # | Task | Status |
 |---|------|--------|
-| 1 | Extend `Fml.g4` with `let`, params, `with` clause, string literals, `LOWER_ID` | Not Started |
-| 2 | Extend `FmlAstBuilder` — new AST nodes for `LetBinding`, `Step`, `Binding`; updated `Program` and `MissionDeclaration` | Not Started |
-| 3 | Update `ExpertLoader.Validate` — accept missions with params without treating param names as missing experts | Not Started |
-| 4 | Change runtime context carrier from `string` to `Dictionary<string, object>` | Not Started |
-| 5 | Implement `Interpolate(string template, Dictionary<string, object> ctx)` — `{{key}}` substitution | Not Started |
-| 6 | Update `PipelineRunner` — seed context from `let` bindings, merge `with` bindings per step, interpolate before each expert call | Not Started |
-| 7 | Update `IExpertRunner.RunAsync` signature — accept context bag, not raw string | Not Started |
-| 8 | Update `MafExpertRunner` — extract `output` from context bag as the user message | Not Started |
-| 9 | Implement `env()` builtin — resolves env vars when seeding context bag; fails clearly if missing and no default | Not Started |
-| 10 | Update CLI `fml run` — add `--var key=value` flag to inject values at call time (overrides `let` bindings) | Not Started |
-| 11 | Update `examples/build-operator/mission.fml` to use `let` bindings, params, and `with` clause | Not Started |
-| 12 | Update expert markdown files to use `{{goal}}` and `{{persona}}` placeholders | Not Started |
-| 13 | Parser tests — `let` bindings parse correctly; `env()` call parses; params round-trip; `with` clause produces correct AST | Not Started |
-| 14 | Runtime tests — interpolation; context seeding; `env()` resolution; missing env var fails clearly; `with` overrides; `--var` overrides | Not Started |
-| 15 | Integration test — end-to-end run of extended `build-operator` example | Not Started |
+| 1 | Extend `FmlGrammar.g4` with `let`, params, `with` clause, string literals, `env()` | Done |
+| 2 | Regenerate ANTLR parser files | Done |
+| 3 | Extend `FmlAstBuilder` — new AST nodes for `LetBinding`, `Step`, `Binding` | Done |
+| 4 | Update `Ast.cs` — `Program`, `MissionDeclaration`, `Pipeline`, new sum types | Done |
+| 5 | Update `ExpertLoader.Validate` — exclude mission params from expert validation | Done |
+| 6 | Change runtime context carrier from `string` to `Dictionary<string, object>` | Done |
+| 7 | Add `ContextInterpolator` — `{{key}}` substitution | Done |
+| 8 | Update `PipelineRunner` — seed context, resolve env(), merge with-bindings, interpolate | Done |
+| 9 | Update `IExpertRunner.RunAsync` signature | Done |
+| 10 | Update `MafExpertRunner` — extract `output` key, interpolate system prompt | Done |
+| 11 | Implement `env()` builtin — fails clearly on missing var with no default | Done |
+| 12 | Update CLI `fml run` — add `--var key=value` flag | Done |
+| 13 | Update `examples/build-operator/mission.fml` — `let`, params, `with` clause | Done |
+| 14 | Update expert markdown files — `{{goal}}`, `{{persona}}`, `{{style}}` placeholders | Done |
+| 15 | Parser tests — let, env(), params, with clause | Done |
+| 16 | Runtime tests — context seeding, with override, --var override, missing env var | Done |
+| 17 | `StubExpertRunner` updated for context bag signature | Done |
+
+## Result
+
+33 tests pass (2 integration tests skip without OPENAI_API_KEY). `fml validate` accepts the
+extended `build-operator` example. All existing tests preserved.
 
 ## Notes
 
-- `IExpertRunner` signature change is a breaking change to the interface — `StubExpertRunner` in
-  tests must be updated at the same time
-- Variable resolution order (lowest to highest precedence): `let` binding → mission param binding →
-  `with` clause → `--var` CLI flag
-- `{{key}}` with no matching context entry should warn, not throw — expert may intentionally leave a
-  placeholder for a prior step to fill
-- The context bag is the OWIN `AppFunc` analogy: each expert reads what it needs and the `output`
-  key carries the chained result forward
+- `IExpertRunner` signature change is breaking — `StubExpertRunner` updated in the same commit
+- `{{key}}` with no matching context entry is left intact (warn-not-throw) — expert may
+  intentionally leave a placeholder for a prior step to fill
+- When a composite expert is flattened, the parent step's `with` clause is not propagated to
+  sub-steps — each step applies only its own `with` clause
+- `--var` overrides happen at context-seeding time, so they override `let` bindings but are
+  themselves overridden by per-step `with` clauses (higher precedence in the resolution order)
