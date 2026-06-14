@@ -1,14 +1,12 @@
 # Forge Mission Language (FML)
 
-A minimal, human-readable language for expressing how a problem should be reasoned about — not merely how a runtime should execute tasks.
+A minimal language for expressing how a problem should be reasoned about — as a composition of experts.
 
 ---
 
-## What is Forge Mission Language?
+## What it is
 
-Forge Mission Language is a prototype language for expressing structured reasoning through the composition of experts.
-
-A **mission** describes a problem or desired outcome. An **expert** is a reusable reasoning capability. The `|>` operator composes experts into a progressive reasoning pipeline.
+Forge Mission Language lets you define a **mission** — a problem or desired outcome — and express how it should be reasoned about as a pipeline of **experts**.
 
 ```fsharp
 mission BuildOperator =
@@ -17,21 +15,36 @@ mission BuildOperator =
     |> PrincipalReviewer
 ```
 
-This is not an execution plan. It is a reasoning structure: apply the Kubernetes architecture lens, then the security lens, then the principal review lens. Each expert refines and constrains the output of the previous one.
+This is not an execution plan. It is a reasoning structure. Each expert applies a lens, refines the previous output, and passes a better-constrained result to the next. The `|>` operator is progressive refinement, not function composition.
+
+The language has three primitives: `mission`, `expert`, and `|>`. That is intentional.
 
 ---
 
-## Why does it exist?
+## Where it came from
 
-Most AI tooling expresses structured reasoning through prompts, markdown instructions, YAML, tool calls, or agent configuration. This works, but the result is often:
+FML emerged from six months of real-world LLM usage across meaningfully different problem domains: production debugging on custom applications, Envoy proxy configuration, Kubernetes and Helm operations, and software development in Go and C#.
 
-- ambiguous — intent is buried in prose
-- difficult to compose — reasoning structures are not reusable
-- difficult to validate — there is no schema to check against
-- difficult to review — the reasoning flow is implicit
-- focused on execution mechanics — tool calls, retries, model selection — rather than the reasoning itself
+In every case, getting reliable output required the same manual work: decompose the problem, identify the relevant reasoning lenses, sequence them deliberately, and structure the handoff between them. That process was always implicit — buried in ad-hoc prompts, markdown files, and trial and error.
 
-Users end up manually inventing prompt-driven and markdown-driven workflows to improve reliability. FML makes those reasoning structures explicit and reviewable.
+FML is the codification of that process. It makes the reasoning structure explicit, named, composable, and reviewable.
+
+---
+
+## The broader methodology
+
+FML does not stand alone. It is one layer in a deliberate engineering approach to LLM-driven work:
+
+1. **Design first** — never execute cold. Iterate on design until it is solid before any implementation begins.
+2. **Phase decomposition** — break the design into agreed phases. Each phase is a meaningful, bounded unit of work.
+3. **Atomic task generation** — per phase, generate tasks in sequential dependency order so each can be executed and tested before the next begins.
+4. **Narrow execution** — by the time an agent executes, the work is so well-prescribed that there is little room for drift. The design thinking is already done.
+5. **Oversight** — an architect agent reviews the work of the executing agent, catches omissions, and enforces quality gates including testing.
+6. **Session continuity** — agent performance degrades as context fills. Sessions are treated as bounded units with structured handoffs, so a fresh agent picks up exactly where the last left off — at full capacity, with full context of what is done and what remains.
+
+FML addresses layer one and three of this stack: expressing the reasoning structure of a design, and giving executing agents a clear, reviewable definition of how to approach a problem.
+
+Without an explicit reasoning structure, agents work from vague instructions and produce inconsistent output. With one, the work is prescriptive enough to execute reliably and narrow enough to test.
 
 ---
 
@@ -39,21 +52,37 @@ Users end up manually inventing prompt-driven and markdown-driven workflows to i
 
 Large language models perform best when reasoning is constrained through deliberate decomposition and the application of expertise.
 
-Forge Mission Language provides a human-readable way to express that decomposition as a composition of experts.
+A single general-purpose prompt asks the model to architect, review, challenge, and conclude simultaneously. Expert composition asks each lens to do one thing well, in sequence, with the previous output as input.
 
 **A mission is a reasoning structure, not an execution plan.**
 
 ---
 
+## Why explicit reasoning structures matter
+
+Most AI tooling expresses reasoning through prompts, markdown instructions, YAML, or agent configuration. This works at small scale, but the result is:
+
+- **ambiguous** — intent is buried in prose, not structure
+- **not composable** — reasoning patterns cannot be named, reused, or shared
+- **not reviewable** — a human or oversight agent cannot inspect the reasoning approach, only the output
+- **not handoff-friendly** — a fresh agent session cannot reconstruct how a problem was being reasoned about
+- **execution-focused** — tool calls, retries, model selection get more attention than the reasoning itself
+
+FML addresses all of these by making the reasoning structure a first-class artifact — something that can be written, reviewed, versioned, and handed to any agent session.
+
+---
+
 ## Syntax
 
-The initial language has three primitives:
+The language has three primitives:
 
 | Primitive | Meaning |
 |-----------|---------|
 | `mission` | A problem or desired outcome |
 | `expert`  | A reusable reasoning capability |
 | `\|>`      | Progressive refinement / expert composition |
+
+Identifiers are PascalCase. Keywords are lowercase. This is enforced by the grammar, not convention — experts are proper nouns representing roles, and the visual distinction from keywords matters when reading a pipeline.
 
 ### Defining a mission
 
@@ -66,7 +95,7 @@ mission BuildOperator =
 
 ### Defining a composed expert
 
-Experts can themselves be composed from other experts, giving the language recursive composition:
+Experts can be composed from other experts, giving the language recursive decomposition:
 
 ```fsharp
 expert KubernetesArchitect =
@@ -77,7 +106,7 @@ expert KubernetesArchitect =
 
 ### Expert definitions (markdown-backed)
 
-Each expert is backed by a markdown file that describes its reasoning role:
+Each expert is backed by a markdown file describing its reasoning role, inputs, and outputs:
 
 ```markdown
 ---
@@ -100,9 +129,9 @@ Your job is to:
 
 ## Thinking models FML can express
 
-FML is not tied to a single problem-solving pattern. The same language can express several common reasoning models through expert composition.
+The same language expresses many common reasoning structures through expert composition.
 
-### 1. Progressive refinement
+### Progressive refinement
 
 ```fsharp
 mission BuildOperator =
@@ -113,7 +142,7 @@ mission BuildOperator =
 
 Each expert improves or constrains the previous output.
 
-### 2. Hierarchical decomposition
+### Hierarchical decomposition
 
 ```fsharp
 expert KubernetesArchitect =
@@ -124,7 +153,7 @@ expert KubernetesArchitect =
 
 A high-level expert is decomposed into smaller, more focused experts.
 
-### 3. Separation of concerns
+### Separation of concerns
 
 ```fsharp
 mission DesignPlatform =
@@ -134,9 +163,9 @@ mission DesignPlatform =
     |> ReliabilityReviewer
 ```
 
-Each expert applies a distinct concern to the same output.
+Each expert applies a distinct concern to the same problem.
 
-### 4. Scientific method
+### Scientific method
 
 ```fsharp
 mission ValidateIdea =
@@ -146,9 +175,7 @@ mission ValidateIdea =
     |> ConclusionWriter
 ```
 
-Encodes hypothesis, testing, evidence, and conclusion as a pipeline.
-
-### 5. OODA loop
+### OODA loop
 
 ```fsharp
 mission RespondToIncident =
@@ -158,9 +185,7 @@ mission RespondToIncident =
     |> Remediator
 ```
 
-Useful for incident response and operational decision-making.
-
-### 6. Adversarial review
+### Adversarial review
 
 ```fsharp
 mission ReviewArchitecture =
@@ -170,9 +195,9 @@ mission ReviewArchitecture =
     |> PrincipalReviewer
 ```
 
-The goal is not just to produce a plan, but to challenge it.
+The goal is not just to produce a plan but to challenge it.
 
-### 7. Tradeoff analysis
+### Tradeoff analysis
 
 ```fsharp
 mission ChooseArchitecture =
@@ -182,11 +207,9 @@ mission ChooseArchitecture =
     |> DecisionAdvisor
 ```
 
-Useful when the answer is not binary and the goal is to surface and compare options.
+### Meta-advisory (future)
 
-### 8. Meta-advisory (future)
-
-A meta expert that helps users design missions given a problem statement:
+A meta expert that helps design missions from a problem statement:
 
 ```fsharp
 expert MetaAdvisor =
@@ -196,14 +219,12 @@ expert MetaAdvisor =
     |> MissionReviewer
 ```
 
-**Example input:**
-
+Given:
 ```text
-User: I need to migrate 300 Terraform modules to a new platform.
+I need to migrate 300 Terraform modules to a new platform.
 ```
 
-**Suggested mission output:**
-
+Suggests:
 ```fsharp
 mission TerraformMigration =
     DiscoveryAnalyst
@@ -215,9 +236,17 @@ mission TerraformMigration =
 
 ---
 
+## Testable hypothesis
+
+> Expert composition improves reasoning quality, consistency, and outcomes compared to a single general-purpose prompt.
+
+The first prototype exists to test this. The `build-operator` example is the initial test case: run the same problem through a composed mission and through a single prompt, and compare the output quality, consistency, and reviewability.
+
+---
+
 ## MVP scope
 
-The MVP focuses on the language and a minimal runtime — not a production-grade agent framework.
+The MVP focuses on the language and a minimal runtime. It is not a production agent framework.
 
 ### In scope
 
@@ -228,13 +257,13 @@ The MVP focuses on the language and a minimal runtime — not a production-grade
 - CLI runner (`fml run`)
 - Saved run outputs per step
 
-### CLI example
+### CLI
 
 ```bash
 fml run examples/build-operator/mission.fml --input examples/build-operator/input.md
 ```
 
-### Output structure
+### Output
 
 ```text
 runs/
@@ -284,11 +313,11 @@ forge-mission-language/
 
 ---
 
-## First implementation plan
+## Implementation plan
 
 ### Phase 1 — Language and parser
 
-- Define the `.fml` grammar (mission, expert, `|>`)
+- Define the `.fml` grammar (`mission`, `expert`, `|>`)
 - Write a hand-written recursive-descent parser in C#
 - Produce an AST: `MissionDeclaration`, `ExpertDeclaration`, `Pipeline`
 - Write unit tests for the parser
@@ -309,7 +338,7 @@ forge-mission-language/
 
 - Abstract the LLM call behind a single interface (`ILlmClient`)
 - Implement one concrete client (Anthropic Claude or Azure OpenAI)
-- Inject the system prompt from the expert definition and the user context from prior output
+- Inject the expert system prompt and prior output as context
 
 ### Phase 5 — CLI
 
@@ -317,19 +346,11 @@ forge-mission-language/
 - `fml validate <mission.fml>` — check that all experts exist and the pipeline is valid
 - `fml list experts` — list available experts in the current directory
 
-### Phase 6 — Example and validation
+### Phase 6 — Validation
 
 - Build the `build-operator` example end-to-end
-- Run it and evaluate whether expert composition produces meaningfully better output than a single general-purpose prompt
+- Run it against the testable hypothesis
 - Document findings
-
----
-
-## Testable hypothesis
-
-> Expert composition improves reasoning quality, consistency, and outcomes compared to a single general-purpose prompt.
-
-The first prototype exists to test this hypothesis. The `build-operator` example is the initial test case.
 
 ---
 
