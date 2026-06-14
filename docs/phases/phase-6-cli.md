@@ -12,16 +12,28 @@ End-to-end run of the `build-operator` example produces correctly named output f
 
 | # | Task | Status |
 |---|------|--------|
-| 1 | Set up `System.CommandLine` root command and subcommands | Not Started |
-| 2 | Implement `fml run <mission.fml> --input <input.md>` — wires parser → loader → runner | Not Started |
-| 3 | Implement `fml validate <mission.fml>` — runs parser and expert loader validation only | Not Started |
-| 4 | Implement `fml list experts` — lists all `.md` files in `experts/` with their names | Not Started |
-| 5 | Wire DI container — register `MafExpertRunner` as `IExpertRunner` | Not Started |
-| 6 | Implement error output — parse errors and validation errors print cleanly to stderr | Not Started |
-| 7 | Create `examples/build-operator/` directory structure | Not Started |
-| 8 | Create `examples/build-operator/mission.fml` | Not Started |
-| 9 | Create `examples/build-operator/input.md` | Not Started |
-| 10 | Create `examples/build-operator/experts/KubernetesArchitect.md` | Not Started |
-| 11 | Create `examples/build-operator/experts/SecurityArchitect.md` | Not Started |
-| 12 | Create `examples/build-operator/experts/PrincipalReviewer.md` | Not Started |
-| 13 | End-to-end test: `fml run` produces output files in correct structure | Not Started |
+| 1 | Set up `System.CommandLine` root command and subcommands | Done |
+| 2 | Implement `fml run <mission.fml> --input <input.md>` — wires parser → loader → runner | Done |
+| 3 | Implement `fml validate <mission.fml>` — runs parser and expert loader validation only | Done |
+| 4 | Implement `fml list experts` — lists all `.md` files in `experts/` with their names | Done |
+| 5 | Wire DI container — register `MafExpertRunner` as `IExpertRunner` | Done (direct construction, no DI container needed at this scale) |
+| 6 | Implement error output — parse errors and validation errors print cleanly to stderr | Done |
+| 7 | Create `examples/build-operator/` directory structure | Done |
+| 8 | Create `examples/build-operator/mission.fml` | Done |
+| 9 | Create `examples/build-operator/input.md` | Done |
+| 10 | Create `examples/build-operator/experts/KubernetesArchitect.md` | Done |
+| 11 | Create `examples/build-operator/experts/SecurityArchitect.md` | Done |
+| 12 | Create `examples/build-operator/experts/PrincipalReviewer.md` | Done |
+| 13 | End-to-end test: `fml run` produces output files in correct structure | Deferred to Phase 7 (requires OPENAI_API_KEY) |
+
+## Result
+
+`fml validate` and `fml list experts` verified working against `examples/build-operator/`.
+`fml run` is wired end-to-end; live test in Phase 7.
+
+## Notes
+
+- System.CommandLine 2.0.9 uses `cmd.Add()` / `cmd.SetAction(Func<ParseResult, Task>)` / `result.GetValue(arg)` — not the beta 1.x API
+- Assembly output named `fml` via `<AssemblyName>fml</AssemblyName>` in csproj
+- No DI container used — `MafExpertRunner` is constructed directly from env var; appropriate for a CLI of this size
+- Experts directory defaults to `<mission-dir>/experts` so `fml run examples/build-operator/mission.fml --input ...` just works

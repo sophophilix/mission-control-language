@@ -1,0 +1,4 @@
+mission BuildOperatorDesign =
+    KubernetesArchitect
+    |> SecurityArchitect
+    |> PrincipalReviewer

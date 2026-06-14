@@ -9,7 +9,7 @@
 | [Phase 3 — Expert Loader](phases/phase-3-expert-loader.md) | Resolve expert names to markdown, parse frontmatter, validate | Done |
 | [Phase 4 — Pipeline Runner](phases/phase-4-pipeline-runner.md) | Orchestration loop, IExpertRunner interface, output writer | Done |
 | [Phase 5 — MAF Adapter](phases/phase-5-maf-adapter.md) | Implement IExpertRunner using Microsoft Agent Framework | Done |
-| [Phase 6 — CLI](phases/phase-6-cli.md) | fml run, fml validate, fml list experts | Not Started |
+| [Phase 6 — CLI](phases/phase-6-cli.md) | fml run, fml validate, fml list experts | Done |
 | [Phase 7 — Validation](phases/phase-7-validation.md) | Build build-operator example, test hypothesis, document findings | Not Started |
 
 ## Design docs
