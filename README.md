@@ -19,6 +19,8 @@ This is not an execution plan. It is a reasoning structure. Each expert applies 
 
 The language has three primitives: `mission`, `expert`, and `|>`. That is intentional.
 
+Experts are the composable unit. Over time, a registry of experts representing common reasoning capabilities — security review, cost analysis, risk assessment, principal review — can be assembled, versioned, and reused across many missions and problem domains. Most problems in IT are not novel; they are familiar problem shapes applied to new contexts. A well-stocked registry of experts makes that reuse explicit.
+
 ---
 
 ## Where it came from
@@ -68,7 +70,7 @@ Most AI tooling expresses reasoning through prompts, markdown instructions, YAML
 - **not handoff-friendly** — a fresh agent session cannot reconstruct how a problem was being reasoned about
 - **execution-focused** — tool calls, retries, model selection get more attention than the reasoning itself
 
-FML addresses all of these by making the reasoning structure a first-class artifact — something that can be written, reviewed, versioned, and handed to any agent session.
+FML addresses all of these by making the reasoning structure a first-class artifact — something that can be written, reviewed, versioned, and handed to any agent session. And because experts are named, portable artifacts, they can be shared and sourced from a registry — accumulated practice that any team can pull and compose rather than rebuild from scratch.
 
 ---
 
@@ -106,7 +108,7 @@ expert KubernetesArchitect =
 
 ### Expert definitions (markdown-backed)
 
-Each expert is backed by a markdown file describing its reasoning role, inputs, and outputs:
+Each expert is backed by a markdown file describing its reasoning role, inputs, and outputs. Expert definitions are intentionally portable — a `SecurityReviewer` applies equally to a Kubernetes architecture, a Terraform module audit, or a Go service design. The reasoning capability is domain-agnostic even when the problem is not. Experts are designed to be shared, versioned as OCI artifacts, and sourced from a registry:
 
 ```markdown
 ---
@@ -129,7 +131,7 @@ Your job is to:
 
 ## Thinking models FML can express
 
-The same language expresses many common reasoning structures through expert composition.
+The same language expresses many common reasoning structures through expert composition. The thinking models below are themselves a reusable catalog — proven approaches to recurring problem shapes that can be matched to new problems without reinventing the reasoning structure each time.
 
 ### Progressive refinement
 
@@ -209,14 +211,14 @@ mission ChooseArchitecture =
 
 ### Meta-advisory (future)
 
-A meta expert that helps design missions from a problem statement:
+A meta expert that helps design missions from a problem statement. Given a problem, it selects the appropriate thinking model and assembles a mission from experts sourced from the registry — lowering the barrier for users who can describe their problem but may not know how to reason about it:
 
 ```fsharp
 expert MetaAdvisor =
     ProblemFramer
-    |> ThinkingModelSelector
-    |> MissionDesigner
-    |> MissionReviewer
+    |> ThinkingModelSelector  -- matches the problem to a proven reasoning model
+    |> MissionDesigner        -- assembles the right experts from the registry
+    |> MissionReviewer        -- challenges the proposed composition
 ```
 
 Given:
@@ -224,7 +226,7 @@ Given:
 I need to migrate 300 Terraform modules to a new platform.
 ```
 
-Suggests:
+Suggests a mission composed from existing registry experts:
 ```fsharp
 mission TerraformMigration =
     DiscoveryAnalyst
@@ -233,6 +235,8 @@ mission TerraformMigration =
     |> RiskReviewer
     |> PrincipalReviewer
 ```
+
+This is the long-term purpose of the registry: not just reuse, but accessibility. Most problems in IT are well-understood by someone. A registry of experts encodes that understanding in a form that anyone can compose and apply.
 
 ---
 
