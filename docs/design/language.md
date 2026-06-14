@@ -10,20 +10,35 @@ The language has exactly three primitives. This is intentional — the language 
 | `expert`  | A reusable reasoning capability |
 | `\|>`      | Progressive refinement / expert composition |
 
-## Grammar (BNF)
+## Grammar
 
-```bnf
-program     = declaration*
-declaration = mission | expert
+The authoritative grammar is [`src/ForgeMission.Core/Parser/FmlGrammar.g4`](../../src/ForgeMission.Core/Parser/FmlGrammar.g4). The ANTLR4 tool generates the lexer and parser from this file.
 
-mission     = "mission" identifier "=" pipeline
-expert      = "expert"  identifier "=" pipeline
+```antlr
+grammar FmlGrammar;
 
-pipeline    = identifier ("|>" identifier)*
-identifier  = [A-Z][A-Za-z0-9]*
+program    : declaration* EOF ;
+declaration : mission | expert ;
+mission    : MISSION UPPER_ID EQUALS pipeline ;
+expert     : EXPERT  UPPER_ID EQUALS pipeline ;
+pipeline   : step (PIPE step)* ;
+step       : UPPER_ID ;
+
+MISSION  : 'mission' ;
+EXPERT   : 'expert'  ;
+PIPE     : '|>'      ;
+EQUALS   : '='       ;
+UPPER_ID : [A-Z][a-zA-Z0-9]* ;
+LOWER_ID : [a-z][a-zA-Z0-9]* ;
+WS       : [ \t\r\n]+ -> skip ;
 ```
 
-Seven rules. This is the entire language.
+To regenerate the parser after a grammar change:
+```
+java -jar antlr4-complete.jar -Dlanguage=CSharp -package ForgeMission.Core.Parser \
+     -visitor -o src/ForgeMission.Core/Parser/Generated \
+     src/ForgeMission.Core/Parser/FmlGrammar.g4
+```
 
 ## Syntax decisions
 

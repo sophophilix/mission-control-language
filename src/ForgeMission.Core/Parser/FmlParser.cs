@@ -1,60 +1,83 @@
+using Antlr4.Runtime;
+
 namespace ForgeMission.Core.Parser;
+
+public record Diagnostic(string Message, int Line, int Column);
+
+public record ParseResult(Program? Ast, IReadOnlyList<Diagnostic> Diagnostics)
+{
+    public bool Success => Ast is not null && Diagnostics.Count == 0;
+}
 
 public static class FmlParser
 {
+    /// <summary>
+    /// Parse FML source and return the AST, throwing <see cref="ParseException"/> on error.
+    /// Existing callers are unaffected.
+    /// </summary>
     public static Program Parse(string source)
     {
-        var tokens = new Lexer(source).Tokenize();
-        var stream = new TokenStream(tokens);
-        return ParseProgram(stream);
+        var result = TryParse(source);
+        if (!result.Success)
+        {
+            var first = result.Diagnostics[0];
+            throw new ParseException(first.Message, first.Line, first.Column);
+        }
+        return result.Ast!;
     }
 
-    private static Program ParseProgram(TokenStream stream)
+    /// <summary>
+    /// Parse FML source and return all diagnostics alongside a best-effort AST.
+    /// Use this path for LSP / tooling that needs to handle incomplete input.
+    /// </summary>
+    public static ParseResult TryParse(string source)
     {
-        var declarations = new List<Declaration>();
-        while (stream.Peek().Type != TokenType.EOF)
-            declarations.Add(ParseDeclaration(stream));
-        return new Program(declarations);
+        var diagnostics = new List<Diagnostic>();
+
+        var inputStream  = CharStreams.fromString(source);
+        var lexer        = new FmlGrammarLexer(inputStream);
+        var tokenStream  = new CommonTokenStream(lexer);
+        var parser       = new FmlGrammarParser(tokenStream);
+
+        lexer.RemoveErrorListeners();
+        parser.RemoveErrorListeners();
+
+        var errorListener = new DiagnosticErrorListener(diagnostics);
+        lexer.AddErrorListener(errorListener);
+        parser.AddErrorListener(errorListener);
+
+        var tree = parser.program();
+
+        if (diagnostics.Count > 0)
+            return new ParseResult(null, diagnostics);
+
+        var ast = (Program)new FmlAstBuilder().Visit(tree)!;
+        return new ParseResult(ast, []);
+    }
+}
+
+file sealed class DiagnosticErrorListener(List<Diagnostic> diagnostics)
+    : IAntlrErrorListener<int>, IAntlrErrorListener<IToken>
+{
+    // Called by the lexer (offending symbol is an int token type)
+    void IAntlrErrorListener<int>.SyntaxError(
+        System.IO.TextWriter output, IRecognizer recognizer,
+        int offendingSymbol, int line, int col, string msg,
+        Antlr4.Runtime.RecognitionException e)
+    {
+        diagnostics.Add(new Diagnostic(msg, line, col));
     }
 
-    private static Declaration ParseDeclaration(TokenStream stream)
+    // Called by the parser (offending symbol is an IToken)
+    void IAntlrErrorListener<IToken>.SyntaxError(
+        System.IO.TextWriter output, IRecognizer recognizer,
+        IToken offendingSymbol, int line, int col, string msg,
+        Antlr4.Runtime.RecognitionException e)
     {
-        var keyword = stream.Peek();
+        var message = offendingSymbol?.Type == FmlGrammarLexer.LOWER_ID
+            ? $"'{offendingSymbol.Text}' is not valid here — expert and mission names must be PascalCase"
+            : msg;
 
-        if (keyword.Type == TokenType.Mission)
-        {
-            stream.Consume();
-            var name = stream.Expect(TokenType.Identifier);
-            stream.Expect(TokenType.Equals);
-            var pipeline = ParsePipeline(stream);
-            return new MissionDeclaration(name.Value, pipeline);
-        }
-
-        if (keyword.Type == TokenType.Expert)
-        {
-            stream.Consume();
-            var name = stream.Expect(TokenType.Identifier);
-            stream.Expect(TokenType.Equals);
-            var pipeline = ParsePipeline(stream);
-            return new ExpertDeclaration(name.Value, pipeline);
-        }
-
-        throw new ParseException(
-            $"Expected 'mission' or 'expert' but got '{keyword.Value}'",
-            keyword.Line, keyword.Column);
-    }
-
-    private static Pipeline ParsePipeline(TokenStream stream)
-    {
-        var steps = new List<string>();
-        steps.Add(stream.Expect(TokenType.Identifier).Value);
-
-        while (stream.Peek().Type == TokenType.Pipe)
-        {
-            stream.Consume();
-            steps.Add(stream.Expect(TokenType.Identifier).Value);
-        }
-
-        return new Pipeline(steps);
+        diagnostics.Add(new Diagnostic(message, line, col));
     }
 }

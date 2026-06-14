@@ -1,0 +1,11 @@
+MISSION=1
+EXPERT=2
+PIPE=3
+EQUALS=4
+UPPER_ID=5
+LOWER_ID=6
+WS=7
+'mission'=1
+'expert'=2
+'|>'=3
+'='=4

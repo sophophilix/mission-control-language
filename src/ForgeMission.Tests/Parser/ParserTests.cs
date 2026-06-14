@@ -111,7 +111,7 @@ public class ParserTests
         var source = "mission BuildOperator KubernetesArchitect";
 
         var ex = Assert.Throws<ParseException>(() => FmlParser.Parse(source));
-        Assert.Contains("Equals", ex.Message);
+        Assert.Contains("'='", ex.Message);
     }
 
     [Fact]
