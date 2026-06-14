@@ -12,16 +12,26 @@ All unit tests pass using a stub `IExpertRunner`. Pipeline correctly sequences s
 
 | # | Task | Status |
 |---|------|--------|
-| 1 | Define `IExpertRunner` interface (`RunAsync(ExpertDefinition, string context, CancellationToken)`) | Not Started |
-| 2 | Define `PipelineRunOptions` (`MissionName`, `InputText`, `OutputDirectory`) | Not Started |
-| 3 | Implement `PipelineRunner` — walks pipeline steps in order | Not Started |
-| 4 | Implement context passing — output of step N becomes input context of step N+1 | Not Started |
-| 5 | Implement output writer — writes each step to `runs/<mission>/<NN>-<ExpertName>.md` | Not Started |
-| 6 | Implement `final.md` — writes the last step output as `runs/<mission>/final.md` | Not Started |
-| 7 | Implement step numbering — zero-padded prefix (01, 02, ...) | Not Started |
-| 8 | Implement `StubExpertRunner` in test project — returns canned string for unit tests | Not Started |
-| 9 | Unit test: single-step pipeline calls runner once and writes output | Not Started |
-| 10 | Unit test: multi-step pipeline passes correct context to each step | Not Started |
-| 11 | Unit test: output files are created with correct names and numbering | Not Started |
-| 12 | Unit test: `final.md` matches last step output | Not Started |
-| 13 | Unit test: cancellation token is respected | Not Started |
+| 1 | Define `IExpertRunner` interface (`RunAsync(ExpertDefinition, string context, CancellationToken)`) | Done |
+| 2 | Define `PipelineRunOptions` (`MissionName`, `InputText`, `OutputDirectory`) | Done |
+| 3 | Implement `PipelineRunner` — walks pipeline steps in order | Done |
+| 4 | Implement context passing — output of step N becomes input context of step N+1 | Done |
+| 5 | Implement output writer — writes each step to `runs/<mission>/<NN>-<ExpertName>.md` | Done |
+| 6 | Implement `final.md` — writes the last step output as `runs/<mission>/final.md` | Done |
+| 7 | Implement step numbering — zero-padded prefix (01, 02, ...) | Done |
+| 8 | Implement `StubExpertRunner` in test project — returns canned string for unit tests | Done |
+| 9 | Unit test: single-step pipeline calls runner once and writes output | Done |
+| 10 | Unit test: multi-step pipeline passes correct context to each step | Done |
+| 11 | Unit test: output files are created with correct names and numbering | Done |
+| 12 | Unit test: `final.md` matches last step output | Done |
+| 13 | Unit test: cancellation token is respected | Done |
+
+## Result
+
+5/5 pipeline runner tests passing. 21/21 total tests passing.
+
+## Notes
+
+- `PipelineRunner` flattens composite expert declarations recursively before executing — a mission step that is itself an `expert` declaration gets expanded into its constituent leaf experts
+- Circular reference detection is in place during flattening
+- `StubExpertRunner` lives in the test project and captures all calls for assertion — useful for verifying context chaining
