@@ -109,12 +109,78 @@ MAF is an internal implementation detail. It must not appear above the adapter l
 
 ---
 
-## At the end of a session
+## During a session — capturing learnings
 
-Before finishing:
-1. Ensure all completed tasks are marked `Done` in the relevant phase spoke doc
-2. Ensure `docs/plan.md` reflects the current phase status accurately
-3. Ensure all tests pass
-4. Commit and push any outstanding changes
+As you work, you will encounter design decisions, implementation surprises, failed approaches, and useful discoveries. These must not stay only in your context — they must be written down before the session ends.
 
-Leave the hub small and current so the next agent can orient quickly.
+**Where to write them:**
+
+| What | Where |
+|------|-------|
+| New or revised design decisions | Relevant file in `docs/design/` |
+| Implementation notes for a phase (e.g. a package behaved unexpectedly) | `## Notes` section of the relevant phase spoke doc |
+| A decision that affects the overall plan | `docs/plan.md` — add a `## Notes` section if needed |
+| A failure or dead end worth remembering | The phase spoke doc under a `## Dead Ends` section |
+
+Write these incrementally as they happen, not as a batch at the end. If your context fills and you cannot finish the session, the docs must be current enough for a fresh agent to continue without losing anything.
+
+---
+
+## At the end of a session — session continuity protocol
+
+Agent performance degrades as context fills. Sessions are intentionally bounded. At the end of every session you must do the following, in order:
+
+### 1. Flush learnings to docs
+
+- Write any new design decisions, notes, or dead ends to the appropriate docs (see above)
+- Commit and push
+
+### 2. Update hub and spokes
+
+- Mark all completed tasks `Done` in the phase spoke doc
+- Add a `## Result` section to the phase spoke doc if the phase is complete
+- Update `docs/plan.md` to reflect the current phase status
+- Commit and push
+
+### 3. Verify tests pass
+
+```bash
+dotnet test src/ForgeMission.slnx
+```
+
+Do not hand off if tests are failing. Fix them first or document exactly why they are failing and what is needed to fix them.
+
+### 4. Generate a handoff prompt
+
+Create a handoff prompt that a fresh agent can paste into a new session to rehydrate context and continue without being briefed from scratch.
+
+The handoff prompt must be a single copyable code block at the end of your response, in this format:
+
+~~~
+```
+You are continuing work on the Forge Mission Language (FML) project.
+
+Repository: ~/progs/fml
+Start by reading AGENTS.md, then docs/plan.md, then the spoke doc for the current phase.
+
+Current state:
+- Phases complete: [list them]
+- Current phase: [phase name and number]
+- Last task completed: [task description]
+- Next task: [task description]
+
+Key context from this session:
+- [Any design decision made that is not yet in the docs]
+- [Any in-progress work that is partially done]
+- [Any known issues or blockers]
+- [Anything else a fresh agent needs to know to continue without asking]
+
+All tests are passing / [describe failing tests if any].
+
+Pick up from [next task] and continue following the methodology in AGENTS.md.
+```
+~~~
+
+The handoff prompt is not a summary for the human — it is a machine-readable orientation for the next agent. Write it to be consumed, not read. Be specific and complete.
+
+Leave the hub small and current. Leave the handoff prompt ready to copy.
