@@ -19,7 +19,7 @@ endif
 INSTALL_DIR := $(HOME)/.local/bin
 CLI         := src/ForgeMission.Cli
 
-.PHONY: help build test install clean
+.PHONY: help build test install clean demo demo-naive demo-reliable
 .DEFAULT_GOAL := help
 
 help:
@@ -43,6 +43,12 @@ install: ## Publish single-file binary to ~/.local/bin
 
 demo: install ## Install then run the build-operator sample mission end-to-end
 	cd missions/build-operator && fms init && fms run
+
+demo-naive: install ## Run the one-shot loop demo — no retry, raw first-attempt output
+	cd missions/loop-demo-naive && fms run
+
+demo-reliable: install ## Run the loop demo — retries until quality passes, shows convergence
+	cd missions/loop-demo && fms run --steps
 
 clean: ## Remove build artefacts (bin/ and obj/)
 	dotnet clean src/

@@ -218,6 +218,40 @@ This is attempt {{attempt}} of {{max_loops}}.
 If this is the final attempt, be especially strict — there are no more chances to improve.
 ```
 
+### Seeing it in action
+
+The `missions/loop-demo` pair shows the difference concretely. Both missions ask the same
+question — *why is the sky blue?* — but one runs once and one loops until a judge approves.
+
+```bash
+make demo-naive      # one shot — whatever comes out, no retry
+make demo-reliable   # loops up to 3 times until QualityJudge passes
+```
+
+**Naive — one shot, no judge:**
+
+> The sky appears blue due to some kind of interaction between sunlight and the atmosphere.
+> You see, the sunlight comes in and interacts with the air, scattering light in some fashion.
+> It's all about how different wavelengths of light get influenced by particles in the air.
+> The shorter wavelengths seem to scatter more, and that leads our eyes to perceive it as blue.
+> It's not something we can see directly, but trust me, it's there. Don't think too hard
+> about it, it's all pretty straightforward!
+
+**Reliable — loops until QualityJudge approves:**
+
+> The sky appears blue primarily due to a phenomenon known as Rayleigh scattering. This occurs
+> when sunlight interacts with molecules and small particles in the Earth's atmosphere. Each
+> color has a different wavelength, with blue light having a shorter wavelength compared to red
+> light. When sunlight enters the atmosphere, it collides with gas molecules, which scatter
+> shorter wavelengths much more effectively than longer ones. A concrete example: during sunrise
+> and sunset, sunlight passes through a thicker layer of atmosphere, scattering the short
+> wavelengths out of the direct line of sight and allowing the longer red and orange wavelengths
+> to prevail — which is why those times of day look so different from noon.
+
+The naive output is plausible-sounding but vague — it never names the mechanism. The reliable
+output names Rayleigh scattering, explains why blue wavelengths scatter more, and gives a
+concrete example. Run `make demo-reliable` to watch the retry happen in real time on stderr.
+
 ---
 
 ## Reserved context variables
@@ -255,20 +289,12 @@ forge-mission-language/
 
 ## Status
 
-Working prototype. Phases 1–10 complete.
-
 | Phase | Description | Status |
 |-------|-------------|--------|
 | 1–10 | Core runtime, parser, CLI, expert resolution, variables | Done |
-| 12 | Structured step envelope — pass/fail per step | In development |
-| 14 | `loop N` — retry pipeline until all steps pass | In development |
-| 15 | Token streaming — live output as experts generate | In development |
-| 16 | FMS rename — binary and extension surface rename | Pending |
+| 12 | Structured step envelope — pass/fail per step | Done |
+| 14 | `loop N` — retry pipeline until all steps pass | Done |
+| 15 | Token streaming — live output as experts generate | Done |
+| 16 | FMS rename — binary and extension surface rename | Done |
 
 See [`docs/plan.md`](docs/plan.md) for the full plan.
-
----
-
-> **Note:** Pass/fail, `loop N`, and token streaming are currently in development.
-> The concepts described in this README reflect the intended design. The CLI, pipeline runner,
-> and expert composition are fully working today.
