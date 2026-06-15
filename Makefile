@@ -41,10 +41,10 @@ install: ## Publish native AOT binary to ~/.local/bin
 demo: install ## Install then run the build-operator sample mission end-to-end
 	cd missions/build-operator && forge init && forge run
 
-demo-naive: install ## Run the one-shot loop demo — no retry, raw first-attempt output
+demo-naive: ## Run the one-shot loop demo — no retry, raw first-attempt output (requires forge in PATH)
 	cd missions/loop-demo-naive && forge run
 
-demo-reliable: install ## Run the loop demo — retries until quality passes, shows convergence
+demo-reliable: ## Run the loop demo — retries until quality passes, shows convergence (requires forge in PATH)
 	cd missions/loop-demo && forge run --steps
 
 clean: ## Remove build artefacts (bin/ and obj/)
