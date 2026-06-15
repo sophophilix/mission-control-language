@@ -47,10 +47,10 @@ jobs:
             binary: forge
             asset: forge-linux-x64
 
-          - os: windows-latest
-            rid: win-x64
+          - os: windows-11-arm
+            rid: win-arm64
             binary: forge.exe
-            asset: forge-win-x64.exe
+            asset: forge-win-arm64.exe
 
     runs-on: ${{ matrix.os }}
 
