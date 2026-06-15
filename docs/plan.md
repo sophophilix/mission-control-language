@@ -19,7 +19,7 @@
 | ~~Phase 13 — passes when~~ | Dropped — failure is declared in the expert MD, not the mission grammar. Bash exit-code model: all steps pass by default; any step returning `fail` stops the mission. | Dropped |
 | [Phase 14 — loop N](phases/phase-14-loop.md) | `loop N` on the mission declaration; reserved variables `{{attempt}}` and `{{max_loops}}` injected by runtime | Done |
 | [Phase 14.5 — Loop Demo](phases/phase-14.5-loop-demo.md) | `ContextOverloaded` (drunk expert, always self-passes) + `QualityJudge` demo showing loop converging on quality | Done |
-| [Phase 15 — Token Streaming](phases/phase-15-streaming.md) | `IAsyncEnumerable<string>` from runner; chunks forwarded to `StepWriter` live; no more silent wait per expert | Pending |
+| [Phase 15 — Token Streaming](phases/phase-15-streaming.md) | `IAsyncEnumerable<string>` from runner; chunks forwarded to `StepWriter` live; no more silent wait per expert | Done |
 | [Phase 16 — FML → FMS Rename](phases/phase-16-fms-rename.md) | Full rename: binary, extension, grammar, generated parser classes, `FmsParser`, `FmsAstBuilder`, docs. | Done |
 
 ## Design docs

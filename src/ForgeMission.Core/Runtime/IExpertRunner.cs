@@ -8,4 +8,9 @@ public interface IExpertRunner
         ExpertDefinition expert,
         Dictionary<string, object> context,
         CancellationToken ct = default);
+
+    IAsyncEnumerable<string> StreamAsync(
+        ExpertDefinition expert,
+        Dictionary<string, object> context,
+        CancellationToken ct = default);
 }

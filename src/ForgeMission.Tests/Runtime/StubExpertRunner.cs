@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+using System.Text.Json;
 using ForgeMission.Core.Experts;
 using ForgeMission.Core.Runtime;
 
@@ -28,5 +30,16 @@ public class StubExpertRunner : IExpertRunner
         ct.ThrowIfCancellationRequested();
         Calls.Add((expert.Name, new Dictionary<string, object>(context, StringComparer.Ordinal)));
         return Task.FromResult(_respond(expert.Name, context));
+    }
+
+    public async IAsyncEnumerable<string> StreamAsync(
+        ExpertDefinition expert,
+        Dictionary<string, object> context,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        Calls.Add((expert.Name, new Dictionary<string, object>(context, StringComparer.Ordinal)));
+        yield return JsonSerializer.Serialize(_respond(expert.Name, context));
+        await Task.CompletedTask;
     }
 }

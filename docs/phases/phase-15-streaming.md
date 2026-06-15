@@ -1,6 +1,6 @@
 # Phase 15 — Token Streaming
 
-**Status:** Pending — depends on Phase 12 (StepEnvelope)
+**Status:** Done
 
 ## Goal
 

@@ -1,3 +1,5 @@
+using System.Text;
+using System.Text.Json;
 using ForgeMission.Core.Experts;
 using ForgeMission.Core.Parser;
 
@@ -50,10 +52,22 @@ public class PipelineRunner(IExpertRunner expertRunner)
                 if (options.StepWriter is { } sw2)
                     await sw2.WriteLineAsync($"→ {step.ExpertName}...");
 
-                var envelope = await expertRunner.RunAsync(expert, context, ct);
-
+                StepEnvelope envelope;
                 if (options.StepWriter is { } sw3)
-                    await sw3.WriteLineAsync($"{envelope.Text}\n");
+                {
+                    var sb = new StringBuilder();
+                    await foreach (var chunk in expertRunner.StreamAsync(expert, context, ct))
+                    {
+                        await sw3.WriteAsync(chunk);
+                        sb.Append(chunk);
+                    }
+                    await sw3.WriteLineAsync("\n");
+                    envelope = ParseStreamedEnvelope(sb.ToString());
+                }
+                else
+                {
+                    envelope = await expertRunner.RunAsync(expert, context, ct);
+                }
 
                 context["output"] = envelope.Text;
 
@@ -73,6 +87,21 @@ public class PipelineRunner(IExpertRunner expertRunner)
         }
 
         return lastResult!;
+    }
+
+    private static readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    private static StepEnvelope ParseStreamedEnvelope(string raw)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<StepEnvelope>(raw.Trim(), _jsonOptions)
+                ?? new StepEnvelope(raw);
+        }
+        catch (JsonException)
+        {
+            return new StepEnvelope(raw);
+        }
     }
 
     private static Dictionary<string, object> SeedContext(Program ast, PipelineRunOptions options)
