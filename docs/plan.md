@@ -25,8 +25,8 @@
 | [Phase 18 — Drop MAF](phases/phase-18-drop-maf.md) | Replace `MafExpertRunner` with `DirectExpertRunner` (direct `IChatClient` calls). Remove `Microsoft.Agents.AI` packages. Primary AOT unblocking step. | Done |
 | Phase 19 — Agent Runtime Design | Design how an `agent` declaration spawns, manages conversational context/continuity, and surfaces missions behind OpenAI-compatible and native interfaces. Covers: agent grammar, runtime lifecycle, session management, interface adapters. | Design |
 | Phase 20 — Parser Project Extraction | Move `ForgeMission.Core/Parser` into a standalone `ForgeMission.Parser` project. Clean compiler/runtime boundary; enables reuse in tooling (language server, IDE plugins). Do after Phase 11 when seams are clear from experience. | Planned |
-| Phase 21 — Parallel Steps + Named Outputs | `[A, B, C]` bracket syntax runs experts concurrently; each step's output is stored in the context bag under `{{StepName.output}}` rather than overwriting `{{output}}`. Enables fan-out/fan-in patterns. Motivated by UC-2 (trading signals) and UC-1 (image analysis). | Design |
-| Phase 22 — Non-LLM Expert Kinds | `kind` field in expert frontmatter (`llm` default, `onnx`, `http`). Pluggable runner dispatch — ONNX runner reads numeric context keys, writes score back; HTTP runner calls an external scoring endpoint. Context bag gains typed values alongside strings. Motivated by UC-3 (log anomaly detection). | Design |
+| [Phase 21 — Parallel Steps + Named Outputs](phases/phase-21-parallel-steps.md) | `[A, B, C]` bracket syntax runs experts concurrently; each step's output stored as `{{StepName.output}}`; fan-out/fan-in patterns. Motivated by image analysis (UC-1) and trading signals (UC-2). | Design |
+| [Phase 22 — Non-LLM Expert Kinds](phases/phase-22-non-llm-experts.md) | `kind` field in expert frontmatter (`llm` default, `onnx`, `http`). Static runner dispatch, no reflection. Context bag gains typed numeric values. Motivated by log anomaly detection (UC-3). | Design |
 
 ## Under discussion
 
@@ -45,4 +45,3 @@
 | [MAF Research](design/maf.md) | Microsoft Agent Framework 1.0 spike findings |
 | [Methodology](design/methodology.md) | The broader engineering approach MCL fits into |
 | [Why MCL exists](why.md) | Origin, core thesis, methodology, thinking models |
-| [Use Cases](use-cases.md) | Concrete scenarios driving language feature design (image analysis, trading signals, log anomaly detection) |
