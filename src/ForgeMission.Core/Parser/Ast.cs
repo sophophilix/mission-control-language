@@ -1,6 +1,11 @@
 namespace ForgeMission.Core.Parser;
 
-public record Program(IReadOnlyList<LetBinding> Bindings, IReadOnlyList<Declaration> Declarations);
+public record Program(
+    IReadOnlyList<UseDeclaration> Uses,
+    IReadOnlyList<LetBinding> Bindings,
+    IReadOnlyList<Declaration> Declarations);
+
+public record UseDeclaration(string Source);
 
 public record LetBinding(string Name, LetValue Value);
 

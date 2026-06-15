@@ -1,5 +1,6 @@
 using ForgeMission.Core.Experts;
 using ForgeMission.Core.Parser;
+using ForgeMission.Core.Resolution;
 
 namespace ForgeMission.Tests.Experts;
 
@@ -10,13 +11,6 @@ public class ExpertLoaderTests : IDisposable
     public ExpertLoaderTests() => Directory.CreateDirectory(_dir);
 
     public void Dispose() => Directory.Delete(_dir, recursive: true);
-
-    private string WriteExpert(string filename, string content)
-    {
-        var path = Path.Combine(_dir, filename);
-        File.WriteAllText(path, content);
-        return path;
-    }
 
     private static string ValidExpertMarkdown(
         string name   = "KubernetesArchitect",
@@ -32,62 +26,102 @@ public class ExpertLoaderTests : IDisposable
         {body}
         """;
 
-    [Fact]
-    public void LoadAll_ValidExpertFile_LoadsCorrectly()
+    // Writes a flat expert file (legacy format)
+    private void WriteFlatExpert(string filename, string content)
+        => File.WriteAllText(Path.Combine(_dir, filename), content);
+
+    // Writes a directory-per-expert (new format)
+    private void WriteDirExpert(string name, string content)
     {
-        WriteExpert("KubernetesArchitect.md", ValidExpertMarkdown());
+        var dir = Path.Combine(_dir, name);
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "expert.md"), content);
+    }
 
+    // ---------------------------------------------------------------------------
+    // Flat file format (backwards compat)
+
+    [Fact]
+    public void LoadAll_FlatFile_LoadsCorrectly()
+    {
+        WriteFlatExpert("KubernetesArchitect.md", ValidExpertMarkdown());
         var experts = new ExpertLoader(_dir).LoadAll();
-
         Assert.Single(experts);
         Assert.True(experts.ContainsKey("KubernetesArchitect"));
     }
 
     [Fact]
-    public void LoadAll_ParsesFrontmatterFields()
+    public void LoadAll_FlatFile_ParsesFrontmatterFields()
     {
-        WriteExpert("KubernetesArchitect.md", ValidExpertMarkdown());
-
+        WriteFlatExpert("KubernetesArchitect.md", ValidExpertMarkdown());
         var expert = new ExpertLoader(_dir).LoadAll()["KubernetesArchitect"];
+        Assert.Equal("KubernetesArchitect", expert.Name);
+        Assert.Equal("MissionBrief", expert.Input);
+        Assert.Equal("ArchitectureProposal", expert.Output);
+    }
 
+    // ---------------------------------------------------------------------------
+    // Directory-per-expert format (new)
+
+    [Fact]
+    public void LoadAll_DirectoryPerExpert_LoadsCorrectly()
+    {
+        WriteDirExpert("KubernetesArchitect", ValidExpertMarkdown());
+        var experts = new ExpertLoader(_dir).LoadAll();
+        Assert.Single(experts);
+        Assert.True(experts.ContainsKey("KubernetesArchitect"));
+    }
+
+    [Fact]
+    public void LoadAll_DirectoryPerExpert_ParsesFrontmatterFields()
+    {
+        WriteDirExpert("KubernetesArchitect", ValidExpertMarkdown());
+        var expert = new ExpertLoader(_dir).LoadAll()["KubernetesArchitect"];
         Assert.Equal("KubernetesArchitect", expert.Name);
         Assert.Equal("MissionBrief", expert.Input);
         Assert.Equal("ArchitectureProposal", expert.Output);
     }
 
     [Fact]
-    public void LoadAll_BodyBelowFrontmatter_BecomesSystemPrompt()
+    public void LoadAll_MultipleDirectoryExperts_LoadsAll()
     {
-        WriteExpert("KubernetesArchitect.md", ValidExpertMarkdown(body: "You are a Kubernetes platform architect."));
-
-        var expert = new ExpertLoader(_dir).LoadAll()["KubernetesArchitect"];
-
-        Assert.Contains("You are a Kubernetes platform architect.", expert.SystemPrompt);
+        WriteDirExpert("KubernetesArchitect", ValidExpertMarkdown("KubernetesArchitect", "MissionBrief", "ArchitectureProposal"));
+        WriteDirExpert("SecurityArchitect",   ValidExpertMarkdown("SecurityArchitect",   "ArchitectureProposal", "SecurityReview"));
+        WriteDirExpert("PrincipalReviewer",   ValidExpertMarkdown("PrincipalReviewer",   "SecurityReview", "FinalReport"));
+        var experts = new ExpertLoader(_dir).LoadAll();
+        Assert.Equal(3, experts.Count);
     }
 
     [Fact]
-    public void LoadAll_MultipleExperts_LoadsAll()
+    public void LoadAll_DirectoryWithoutExpertMd_IsIgnored()
     {
-        WriteExpert("KubernetesArchitect.md", ValidExpertMarkdown("KubernetesArchitect", "MissionBrief", "ArchitectureProposal"));
-        WriteExpert("SecurityArchitect.md",   ValidExpertMarkdown("SecurityArchitect",   "ArchitectureProposal", "SecurityReview"));
-        WriteExpert("PrincipalReviewer.md",   ValidExpertMarkdown("PrincipalReviewer",   "SecurityReview", "FinalReport"));
-
+        WriteDirExpert("KubernetesArchitect", ValidExpertMarkdown());
+        Directory.CreateDirectory(Path.Combine(_dir, "EmptyDir")); // no expert.md
         var experts = new ExpertLoader(_dir).LoadAll();
+        Assert.Single(experts);
+    }
 
-        Assert.Equal(3, experts.Count);
-        Assert.True(experts.ContainsKey("KubernetesArchitect"));
-        Assert.True(experts.ContainsKey("SecurityArchitect"));
-        Assert.True(experts.ContainsKey("PrincipalReviewer"));
+    [Fact]
+    public void LoadAll_DirectoryExpert_TakesPrecedenceOverFlatFile()
+    {
+        // Both formats define the same expert — directory wins
+        WriteDirExpert("KubernetesArchitect", ValidExpertMarkdown(body: "From directory"));
+        WriteFlatExpert("KubernetesArchitect.md", ValidExpertMarkdown(body: "From flat file"));
+        var experts = new ExpertLoader(_dir).LoadAll();
+        Assert.Single(experts);
+        Assert.Contains("From directory", experts["KubernetesArchitect"].SystemPrompt);
     }
 
     [Fact]
     public void LoadAll_MissingFrontmatterField_ThrowsExpertLoadException()
     {
-        WriteExpert("Bad.md", "---\nname: Bad\n---\nBody");
-
+        WriteDirExpert("Bad", "---\nname: Bad\n---\nBody");
         var ex = Assert.Throws<ExpertLoadException>(() => new ExpertLoader(_dir).LoadAll());
         Assert.Contains("input", ex.Message);
     }
+
+    // ---------------------------------------------------------------------------
+    // Validation
 
     [Fact]
     public void Validate_MissingExpert_ThrowsExpertLoadException()
@@ -98,7 +132,7 @@ public class ExpertLoaderTests : IDisposable
                 |> SecurityArchitect
             """);
 
-        WriteExpert("KubernetesArchitect.md", ValidExpertMarkdown("KubernetesArchitect", "MissionBrief", "ArchitectureProposal"));
+        WriteDirExpert("KubernetesArchitect", ValidExpertMarkdown("KubernetesArchitect", "MissionBrief", "ArchitectureProposal"));
         var experts = new ExpertLoader(_dir).LoadAll();
 
         var ex = Assert.Throws<ExpertLoadException>(() => ExpertLoader.Validate(ast, experts));
@@ -114,8 +148,8 @@ public class ExpertLoaderTests : IDisposable
                 |> SecurityArchitect
             """);
 
-        WriteExpert("KubernetesArchitect.md", ValidExpertMarkdown("KubernetesArchitect", "MissionBrief", "ArchitectureProposal"));
-        WriteExpert("SecurityArchitect.md",   ValidExpertMarkdown("SecurityArchitect", "ArchitectureProposal", "SecurityReview"));
+        WriteDirExpert("KubernetesArchitect", ValidExpertMarkdown("KubernetesArchitect", "MissionBrief", "ArchitectureProposal"));
+        WriteDirExpert("SecurityArchitect",   ValidExpertMarkdown("SecurityArchitect", "ArchitectureProposal", "SecurityReview"));
         var experts = new ExpertLoader(_dir).LoadAll();
 
         var ex = Record.Exception(() => ExpertLoader.Validate(ast, experts));
@@ -134,11 +168,34 @@ public class ExpertLoaderTests : IDisposable
                 KubernetesArchitect
             """);
 
-        WriteExpert("RequirementsAnalyst.md", ValidExpertMarkdown("RequirementsAnalyst", "Brief", "Analysis"));
-        WriteExpert("PlatformArchitect.md",   ValidExpertMarkdown("PlatformArchitect", "Analysis", "Design"));
+        WriteDirExpert("RequirementsAnalyst", ValidExpertMarkdown("RequirementsAnalyst", "Brief", "Analysis"));
+        WriteDirExpert("PlatformArchitect",   ValidExpertMarkdown("PlatformArchitect", "Analysis", "Design"));
         var experts = new ExpertLoader(_dir).LoadAll();
 
         var ex = Record.Exception(() => ExpertLoader.Validate(ast, experts));
         Assert.Null(ex);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Lock file loading
+
+    [Fact]
+    public void LoadFromLockFile_ReadsExpertsByPath()
+    {
+        WriteDirExpert("KubernetesArchitect", ValidExpertMarkdown());
+        var expertMdPath = Path.Combine(_dir, "KubernetesArchitect", "expert.md");
+
+        var lockFile = new LockFile
+        {
+            Sources = ["./experts"],
+            Experts = new Dictionary<string, LockFileExpert>
+            {
+                ["KubernetesArchitect"] = new() { Source = "./experts", Path = expertMdPath }
+            }
+        };
+
+        var experts = ExpertLoader.LoadFromLockFile(lockFile);
+        Assert.Single(experts);
+        Assert.Equal("KubernetesArchitect", experts["KubernetesArchitect"].Name);
     }
 }

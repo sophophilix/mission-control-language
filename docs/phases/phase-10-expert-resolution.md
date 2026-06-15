@@ -306,22 +306,22 @@ Suggested action:
 
 | # | Task | Status |
 |---|------|--------|
-| 1 | Add `use` declaration to `FmlGrammar.g4`; regenerate ANTLR | Not Started |
-| 2 | Add `UseDeclaration` to AST; update `FmlAstBuilder` | Not Started |
-| 3 | Update `ExpertLoader` — look for `<name>/expert.md` instead of `<name>.md` | Not Started |
-| 4 | Migrate `examples/build-operator/experts/` to directory-per-expert structure | Not Started |
-| 5 | Implement `LockFileWriter` — generate `fms.lock` from resolved expert map | Not Started |
-| 6 | Implement `LockFileReader` — load resolved expert paths from `fms.lock` | Not Started |
-| 7 | Implement `SourceResolver` — resolve local path sources; emit FMS010 for OCI | Not Started |
-| 8 | Add `fms init` command — parse `use` decls, resolve sources, write lock file | Not Started |
-| 9 | Update `fms run` — read from `fms.lock`; fail with FMS007 if not initialised | Not Started |
-| 10 | Update `fms validate` — stale lock file detection (FMS006), duplicate check (FMS002) | Not Started |
-| 11 | Add `fms expert init <Name>` command — scaffold directory-per-expert | Not Started |
-| 12 | Add `FMS` error code infrastructure — structured diagnostics with code, message, context | Not Started |
-| 13 | Update `ExpertLoaderTests` for new directory structure | Not Started |
-| 14 | Tests — `use` declaration parses; lock file round-trips; FMS007 on missing init | Not Started |
-| 15 | Update `docs/design/language.md` with `use` grammar addition | Not Started |
-| 16 | Update README — `fms init` in the CLI section | Not Started |
+| 1 | Add `use` declaration to `FmlGrammar.g4`; regenerate ANTLR | Done |
+| 2 | Add `UseDeclaration` to AST; update `FmlAstBuilder` | Done |
+| 3 | Update `ExpertLoader` — look for `<name>/expert.md` instead of `<name>.md` | Done |
+| 4 | Migrate `examples/build-operator/experts/` to directory-per-expert structure | Done |
+| 5 | Implement `LockFileWriter` — generate `fms.lock` from resolved expert map | Done |
+| 6 | Implement `LockFileReader` — load resolved expert paths from `fms.lock` | Done |
+| 7 | Implement `SourceResolver` — resolve local path sources; emit FMS010 for OCI | Done |
+| 8 | Add `fms init` command — parse `use` decls, resolve sources, write lock file | Done |
+| 9 | Update `fms run` — read from `fms.lock`; fail with FMS007 if not initialised | Done |
+| 10 | Update `fms validate` — stale lock file detection (FMS006), duplicate check (FMS002) | Done |
+| 11 | Add `fms expert init <Name>` command — scaffold directory-per-expert | Done |
+| 12 | Add `FMS` error code infrastructure — structured diagnostics with code, message, context | Done |
+| 13 | Update `ExpertLoaderTests` for new directory structure | Done |
+| 14 | Tests — `use` declaration parses; lock file round-trips; FMS007 on missing init | Done |
+| 15 | Update `docs/design/language.md` with `use` grammar addition | Done |
+| 16 | Update README — `fms init` in the CLI section | Done |
 
 ---
 
@@ -344,3 +344,12 @@ Suggested action:
 - `.fms/` is gitignored. Add to `.gitignore` as part of this phase.
 - The `use` keyword must be added before LOWER_ID in the lexer rule order so it takes lexer
   priority, consistent with how `let`, `with`, `env` are handled.
+
+## Result
+
+45 tests pass (43 unit + 2 integration-skip). All three new commands work end-to-end:
+
+- `fms init` resolves `use` declarations, writes `fms.lock`
+- `fms validate` reads from lock file, warns on stale lock
+- `fms expert init <Name>` scaffolds directory-per-expert with frontmatter template
+- `fms run` fails clearly with FMS007 if `fms.lock` is absent

@@ -42,6 +42,16 @@ public interface IFmlGrammarListener : IParseTreeListener {
 	/// <param name="context">The parse tree.</param>
 	void ExitProgram([NotNull] FmlGrammarParser.ProgramContext context);
 	/// <summary>
+	/// Enter a parse tree produced by <see cref="FmlGrammarParser.useDecl"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterUseDecl([NotNull] FmlGrammarParser.UseDeclContext context);
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="FmlGrammarParser.useDecl"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitUseDecl([NotNull] FmlGrammarParser.UseDeclContext context);
+	/// <summary>
 	/// Enter a parse tree produced by <see cref="FmlGrammarParser.letBinding"/>.
 	/// </summary>
 	/// <param name="context">The parse tree.</param>

@@ -1,0 +1,13 @@
+version: 1
+sources:
+- ./experts
+experts:
+  KubernetesArchitect:
+    source: ./experts
+    path: /Users/ameerdeen/progs/fml/examples/build-operator/experts/KubernetesArchitect/expert.md
+  PrincipalReviewer:
+    source: ./experts
+    path: /Users/ameerdeen/progs/fml/examples/build-operator/experts/PrincipalReviewer/expert.md
+  SecurityArchitect:
+    source: ./experts
+    path: /Users/ameerdeen/progs/fml/examples/build-operator/experts/SecurityArchitect/expert.md

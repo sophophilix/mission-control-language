@@ -1,3 +1,5 @@
+use "./experts"
+
 let goal    = "Design a production-grade K8s build operator"
 let persona = "Principal SRE, Tekton specialist"
 

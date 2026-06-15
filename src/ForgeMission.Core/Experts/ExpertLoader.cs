@@ -1,4 +1,5 @@
 using ForgeMission.Core.Parser;
+using ForgeMission.Core.Resolution;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -11,6 +12,16 @@ public class ExpertLoader(string expertsDirectory)
         .IgnoreUnmatchedProperties()
         .Build();
 
+    /// <summary>Load experts from a resolved lock file catalog.</summary>
+    public static Dictionary<string, ExpertDefinition> LoadFromLockFile(LockFile lockFile)
+    {
+        var experts = new Dictionary<string, ExpertDefinition>(StringComparer.Ordinal);
+        foreach (var (name, entry) in lockFile.Experts)
+            experts[name] = ParseFile(entry.Path);
+        return experts;
+    }
+
+    /// <summary>Load experts from a directory, supporting both directory-per-expert and flat file.</summary>
     public Dictionary<string, ExpertDefinition> LoadAll()
     {
         if (!Directory.Exists(expertsDirectory))
@@ -18,10 +29,21 @@ public class ExpertLoader(string expertsDirectory)
 
         var experts = new Dictionary<string, ExpertDefinition>(StringComparer.Ordinal);
 
+        // Directory-per-expert: experts/Name/expert.md
+        foreach (var dir in Directory.GetDirectories(expertsDirectory))
+        {
+            var expertMd = Path.Combine(dir, "expert.md");
+            if (!File.Exists(expertMd)) continue;
+            var expert = ParseFile(expertMd);
+            experts[expert.Name] = expert;
+        }
+
+        // Flat fallback: experts/Name.md (backwards compatibility)
         foreach (var file in Directory.GetFiles(expertsDirectory, "*.md"))
         {
             var expert = ParseFile(file);
-            experts[expert.Name] = expert;
+            if (!experts.ContainsKey(expert.Name))
+                experts[expert.Name] = expert;
         }
 
         return experts;
@@ -34,7 +56,6 @@ public class ExpertLoader(string expertsDirectory)
             .Select(e => e.Name)
             .ToHashSet(StringComparer.Ordinal);
 
-        // Mission params are variable names, not expert names — exclude them from validation
         var missionParams = ast.Declarations
             .OfType<MissionDeclaration>()
             .SelectMany(m => m.Params)
@@ -59,10 +80,10 @@ public class ExpertLoader(string expertsDirectory)
         if (missing.Count > 0)
             throw new ExpertLoadException(
                 $"Missing expert definitions for: {string.Join(", ", missing)}. " +
-                $"Each expert must be declared in the .fml file or have a matching markdown file in the experts directory.");
+                "Each expert must be declared in the .fml file or have a matching markdown file in the experts directory.");
     }
 
-    private static ExpertDefinition ParseFile(string path)
+    internal static ExpertDefinition ParseFile(string path)
     {
         var content = File.ReadAllText(path);
         var (frontmatter, body) = SplitFrontmatter(path, content);
@@ -97,7 +118,7 @@ public class ExpertLoader(string expertsDirectory)
             throw new ExpertLoadException($"Unclosed frontmatter block in {Path.GetFileName(path)}");
 
         var frontmatter = string.Join('\n', lines[1..closingIndex]);
-        var body = string.Join('\n', lines[(closingIndex + 1)..]);
+        var body        = string.Join('\n', lines[(closingIndex + 1)..]);
         return (frontmatter, body);
     }
 

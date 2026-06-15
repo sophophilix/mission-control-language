@@ -39,6 +39,12 @@ public interface IFmlGrammarVisitor<Result> : IParseTreeVisitor<Result> {
 	/// <return>The visitor result.</return>
 	Result VisitProgram([NotNull] FmlGrammarParser.ProgramContext context);
 	/// <summary>
+	/// Visit a parse tree produced by <see cref="FmlGrammarParser.useDecl"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	/// <return>The visitor result.</return>
+	Result VisitUseDecl([NotNull] FmlGrammarParser.UseDeclContext context);
+	/// <summary>
 	/// Visit a parse tree produced by <see cref="FmlGrammarParser.letBinding"/>.
 	/// </summary>
 	/// <param name="context">The parse tree.</param>

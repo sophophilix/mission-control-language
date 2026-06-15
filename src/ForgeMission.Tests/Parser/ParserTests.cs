@@ -229,4 +229,57 @@ public class ParserTests
         var value = Assert.IsType<VarRefBindingValue>(binding.Value);
         Assert.Equal("myStyle", value.Name);
     }
+
+    // Phase 10 — use declarations
+
+    [Fact]
+    public void UseDeclaration_LocalPath_ParsesCorrectly()
+    {
+        var source = """
+            use "./experts"
+            mission BuildOperator = KubernetesArchitect
+            """;
+
+        var result = FmlParser.Parse(source);
+
+        var use = Assert.Single(result.Uses);
+        Assert.Equal("./experts", use.Source);
+    }
+
+    [Fact]
+    public void UseDeclaration_OciUri_ParsesCorrectly()
+    {
+        var source = """
+            use "oci://ghcr.io/forge/experts/platform:v1"
+            mission BuildOperator = KubernetesArchitect
+            """;
+
+        var result = FmlParser.Parse(source);
+
+        var use = Assert.Single(result.Uses);
+        Assert.Equal("oci://ghcr.io/forge/experts/platform:v1", use.Source);
+    }
+
+    [Fact]
+    public void MultipleUseDeclarations_ParseInOrder()
+    {
+        var source = """
+            use "./experts"
+            use "oci://ghcr.io/forge/experts/platform:v1"
+            mission BuildOperator = KubernetesArchitect
+            """;
+
+        var result = FmlParser.Parse(source);
+
+        Assert.Equal(2, result.Uses.Count);
+        Assert.Equal("./experts", result.Uses[0].Source);
+        Assert.Equal("oci://ghcr.io/forge/experts/platform:v1", result.Uses[1].Source);
+    }
+
+    [Fact]
+    public void NoUseDeclarations_UsesIsEmpty()
+    {
+        var result = FmlParser.Parse("mission BuildOperator = KubernetesArchitect");
+        Assert.Empty(result.Uses);
+    }
 }

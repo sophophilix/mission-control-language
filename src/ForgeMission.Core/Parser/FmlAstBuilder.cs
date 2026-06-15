@@ -1,11 +1,13 @@
-using Antlr4.Runtime.Tree;
-
 namespace ForgeMission.Core.Parser;
 
 internal class FmlAstBuilder : FmlGrammarBaseVisitor<object?>
 {
     public override object? VisitProgram(FmlGrammarParser.ProgramContext ctx)
     {
+        var uses = ctx.useDecl()
+            .Select(u => (UseDeclaration)Visit(u)!)
+            .ToList();
+
         var bindings = ctx.letBinding()
             .Select(b => (LetBinding)Visit(b)!)
             .ToList();
@@ -14,8 +16,11 @@ internal class FmlAstBuilder : FmlGrammarBaseVisitor<object?>
             .Select(d => (Declaration)Visit(d)!)
             .ToList();
 
-        return new Program(bindings, declarations);
+        return new Program(uses, bindings, declarations);
     }
+
+    public override object? VisitUseDecl(FmlGrammarParser.UseDeclContext ctx)
+        => new UseDeclaration(StripQuotes(ctx.STRING().GetText()));
 
     public override object? VisitLetBinding(FmlGrammarParser.LetBindingContext ctx)
     {
@@ -80,7 +85,6 @@ internal class FmlAstBuilder : FmlGrammarBaseVisitor<object?>
             ? []
             : ctx.LOWER_ID().Select(id => id.GetText()).ToList();
 
-    // let bindings: only STRING and env() are valid — no var refs
     private static LetValue ParseLetValue(FmlGrammarParser.ValueContext ctx)
     {
         if (ctx.STRING() is { } str)
@@ -92,7 +96,6 @@ internal class FmlAstBuilder : FmlGrammarBaseVisitor<object?>
             ctx.Start.Line, ctx.Start.Column);
     }
 
-    // with-clause bindings: STRING, LOWER_ID (var ref), or env()
     private static BindingValue ParseBindingValue(FmlGrammarParser.ValueContext ctx)
     {
         if (ctx.STRING() is { } str)
@@ -109,7 +112,7 @@ internal class FmlAstBuilder : FmlGrammarBaseVisitor<object?>
 
     private static EnvLetValue ParseEnvLetValue(FmlGrammarParser.EnvCallContext ctx)
     {
-        var strings = ctx.STRING();
+        var strings      = ctx.STRING();
         var varName      = StripQuotes(strings[0].GetText());
         var defaultValue = strings.Length > 1 ? StripQuotes(strings[1].GetText()) : null;
         return new EnvLetValue(varName, defaultValue);

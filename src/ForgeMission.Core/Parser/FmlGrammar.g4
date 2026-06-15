@@ -3,7 +3,11 @@ grammar FmlGrammar;
 // Parser rules
 
 program
-    : (letBinding | declaration)* EOF
+    : useDecl* (letBinding | declaration)* EOF
+    ;
+
+useDecl
+    : USE STRING
     ;
 
 letBinding
@@ -55,6 +59,7 @@ envCall
 
 // Lexer rules — keywords before LOWER_ID so they take priority
 
+USE     : 'use'     ;
 LET     : 'let'     ;
 MISSION : 'mission' ;
 EXPERT  : 'expert'  ;
