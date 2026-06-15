@@ -1,0 +1,10 @@
+version: 1
+sources:
+- ./experts
+experts:
+  ContextOverloaded:
+    source: ./experts
+    path: /Users/ameerdeen/progs/fml/missions/loop-demo/experts/ContextOverloaded/expert.md
+  QualityJudge:
+    source: ./experts
+    path: /Users/ameerdeen/progs/fml/missions/loop-demo/experts/QualityJudge/expert.md

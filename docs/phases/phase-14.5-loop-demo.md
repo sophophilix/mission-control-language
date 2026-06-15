@@ -1,6 +1,6 @@
 # Phase 14.5 — Loop Demo Mission
 
-**Status:** Pending — depends on Phase 12 (StepEnvelope) and Phase 14 (loop N)
+**Status:** Done
 
 ## Goal
 

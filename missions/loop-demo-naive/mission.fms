@@ -1,0 +1,8 @@
+use "./experts"
+
+let topic = "why the sky is blue"
+
+mission NaiveAnswer(topic) =
+    ContextOverloaded
+
+output(NaiveAnswer)
