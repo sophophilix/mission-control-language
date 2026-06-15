@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g. 0.1.0)'
+        required: true
+
+permissions:
+  contents: write   # create tags, releases, upload assets
+
+jobs:
+  # ── 1. Tag the commit and open a draft release ──────────────────────────────
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create tag and draft release
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag v${{ github.event.inputs.version }}
+          git push origin v${{ github.event.inputs.version }}
+          gh release create v${{ github.event.inputs.version }} \
+            --draft \
+            --title "v${{ github.event.inputs.version }}" \
+            --generate-notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── 2. Build a native AOT binary on each target OS and attach it ─────────────
+  build:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14        # Apple Silicon runner — required for osx-arm64 AOT
+            rid: osx-arm64
+            binary: forge
+            asset: forge-osx-arm64
+
+          - os: ubuntu-latest
+            rid: linux-x64
+            binary: forge
+            asset: forge-linux-x64
+
+          - os: windows-latest
+            rid: win-x64
+            binary: forge.exe
+            asset: forge-win-x64.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
+
+      # macOS: AOT linker needs Homebrew's openssl and brotli (not on default path)
+      - name: Install AOT prerequisites (macOS)
+        if: runner.os == 'macOS'
+        run: brew install openssl@3 brotli
+
+      # Linux: AOT linker needs clang and zlib headers
+      - name: Install AOT prerequisites (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y clang zlib1g-dev
+
+      # Windows: MSVC is pre-installed on windows-latest — nothing extra needed
+
+      - name: Publish native AOT
+        run: dotnet publish src/ForgeMission.Cli -c Release -r ${{ matrix.rid }} -o dist
+
+      - name: Upload release asset
+        shell: bash
+        run: |
+          cp dist/${{ matrix.binary }} dist/${{ matrix.asset }}
+          gh release upload v${{ github.event.inputs.version }} dist/${{ matrix.asset }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── 3. All binaries attached — mark the release as ready to review ───────────
+  #
+  # The release stays as a draft. Go to GitHub → Releases → Edit → Publish
+  # once you've reviewed the attached binaries and release notes.
