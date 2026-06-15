@@ -1,0 +1,11 @@
+version: 1
+experts:
+  KubernetesArchitect:
+    source: ghcr.io/katasec/forge-kubernetes-architect:0.1.0
+    path: experts/KubernetesArchitect/expert.md
+  PrincipalReviewer:
+    source: ghcr.io/katasec/forge-principal-reviewer:0.1.0
+    path: experts/PrincipalReviewer/expert.md
+  SecurityArchitect:
+    source: ghcr.io/katasec/forge-security-architect:0.1.0
+    path: experts/SecurityArchitect/expert.md

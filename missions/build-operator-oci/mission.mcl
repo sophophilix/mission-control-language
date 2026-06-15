@@ -1,0 +1,30 @@
+// Build Operator Design — OCI edition
+// Same pipeline as build-operator but experts are pulled from ghcr.io/katasec
+// on first run via: forge init
+
+// LLM provider
+let provider = env("MCL_PROVIDER", "openai")
+let apiKey   = env("MCL_API_KEY")
+let model    = env("MCL_MODEL", "gpt-4o-mini")
+
+// Mission inputs
+let goal    = "Design a production-grade K8s build operator"
+let persona = "Principal SRE, Tekton specialist"
+
+// OCI-sourced experts — pulled into ./experts by forge init
+expert KubernetesArchitect =
+    from "ghcr.io/katasec/forge-kubernetes-architect"
+    version "0.1.0"
+
+expert SecurityArchitect =
+    from "ghcr.io/katasec/forge-security-architect"
+    version "0.1.0"
+
+expert PrincipalReviewer =
+    from "ghcr.io/katasec/forge-principal-reviewer"
+    version "0.1.0"
+
+mission BuildOperatorDesign(goal, persona) =
+    KubernetesArchitect             // drafts CRDs, controller structure, RBAC
+    |> SecurityArchitect            // hardens the design
+    |> PrincipalReviewer with { style = "terse ADR" }  // final sign-off as a terse ADR

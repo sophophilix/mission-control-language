@@ -125,9 +125,9 @@ public class PipelineRunner(IExpertRunner expertRunner)
             throw new InvalidOperationException(
                 $"Circular expert reference detected: '{step.ExpertName}'");
 
-        if (decls.TryGetValue(step.ExpertName, out var decl))
+        if (decls.TryGetValue(step.ExpertName, out var decl) && decl.Pipeline is { } pipeline)
         {
-            foreach (var inner in decl.Pipeline.Steps)
+            foreach (var inner in pipeline.Steps)
                 FlattenStep(inner, decls, result, new HashSet<string>(visited, StringComparer.Ordinal));
         }
         else
