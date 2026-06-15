@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-// Generated from /Users/ameerdeen/progs/fml/src/ForgeMission.Core/Parser/MclGrammar.g4 by ANTLR 4.13.1
+// Generated from src/ForgeMission.Core/Parser/MclGrammar.g4 by ANTLR 4.13.1
 
 // Unreachable code detected
 #pragma warning disable 0162
@@ -39,7 +39,7 @@ public partial class MclGrammarParser : Parser {
 	public const int
 		USE=1, LET=2, MISSION=3, EXPERT=4, WITH=5, ENV=6, OUTPUT=7, LOOP=8, INT=9, 
 		PIPE=10, EQUALS=11, LPAREN=12, RPAREN=13, LBRACE=14, RBRACE=15, COMMA=16, 
-		UPPER_ID=17, LOWER_ID=18, STRING=19, WS=20;
+		UPPER_ID=17, LOWER_ID=18, STRING=19, WS=20, LINE_COMMENT=21;
 	public const int
 		RULE_program = 0, RULE_useDecl = 1, RULE_letBinding = 2, RULE_declaration = 3, 
 		RULE_outputDecl = 4, RULE_mission = 5, RULE_loopClause = 6, RULE_expert = 7, 
@@ -58,7 +58,7 @@ public partial class MclGrammarParser : Parser {
 	private static readonly string[] _SymbolicNames = {
 		null, "USE", "LET", "MISSION", "EXPERT", "WITH", "ENV", "OUTPUT", "LOOP", 
 		"INT", "PIPE", "EQUALS", "LPAREN", "RPAREN", "LBRACE", "RBRACE", "COMMA", 
-		"UPPER_ID", "LOWER_ID", "STRING", "WS"
+		"UPPER_ID", "LOWER_ID", "STRING", "WS", "LINE_COMMENT"
 	};
 	public static readonly IVocabulary DefaultVocabulary = new Vocabulary(_LiteralNames, _SymbolicNames);
 
@@ -1161,7 +1161,7 @@ public partial class MclGrammarParser : Parser {
 	}
 
 	private static int[] _serializedATN = {
-		4,1,20,142,2,0,7,0,2,1,7,1,2,2,7,2,2,3,7,3,2,4,7,4,2,5,7,5,2,6,7,6,2,7,
+		4,1,21,142,2,0,7,0,2,1,7,1,2,2,7,2,2,3,7,3,2,4,7,4,2,5,7,5,2,6,7,6,2,7,
 		7,7,2,8,7,8,2,9,7,9,2,10,7,10,2,11,7,11,2,12,7,12,2,13,7,13,2,14,7,14,
 		1,0,5,0,32,8,0,10,0,12,0,35,9,0,1,0,1,0,1,0,5,0,40,8,0,10,0,12,0,43,9,
 		0,1,0,1,0,1,1,1,1,1,1,1,2,1,2,1,2,1,2,1,2,1,3,1,3,3,3,57,8,3,1,4,1,4,1,

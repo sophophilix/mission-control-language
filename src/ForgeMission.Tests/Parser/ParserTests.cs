@@ -282,4 +282,27 @@ public class ParserTests
         var result = MclParser.Parse("mission BuildOperator = KubernetesArchitect");
         Assert.Empty(result.Uses);
     }
+
+    // Comments
+
+    [Fact]
+    public void LineComment_IsIgnored()
+    {
+        var result = MclParser.Parse("""
+            // This is a comment
+            mission BuildOperator = KubernetesArchitect // inline comment
+            """);
+
+        var mission = Assert.Single(result.Declarations) as MissionDeclaration;
+        Assert.NotNull(mission);
+        Assert.Equal("BuildOperator", mission.Name);
+    }
+
+    [Fact]
+    public void LineComment_OnlyLine_ParsesAsEmpty()
+    {
+        var result = MclParser.Parse("// just a comment");
+        Assert.Empty(result.Declarations);
+        Assert.Empty(result.Bindings);
+    }
 }
