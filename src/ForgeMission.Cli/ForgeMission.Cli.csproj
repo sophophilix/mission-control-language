@@ -17,6 +17,10 @@
     <Nullable>enable</Nullable>
     <AssemblyName>forge</AssemblyName>
     <PublishAot>true</PublishAot>
+    <!-- YamlDotNet uses reflection-based builders; our types are preserved via
+         [DynamicDependency] so these warnings are safe to suppress. -->
+    <IlcSuppressWarnings>IL3050</IlcSuppressWarnings>
+    <NoWarn>$(NoWarn);IL3050;IL2104;IL3053</NoWarn>
   </PropertyGroup>
 
   <!-- Native AOT on macOS: system libs needed by the AOT runtime live under Homebrew -->
