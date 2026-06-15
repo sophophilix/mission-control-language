@@ -83,8 +83,7 @@ static Command BuildInitCommand()
 static Command BuildRunCommand()
 {
     var missionArg = new Argument<FileInfo?>("mission") { Description = "Path to the .fms mission file (default: mission.fml)", Arity = ArgumentArity.ZeroOrOne };
-    var inputOpt   = new Option<FileInfo>("--input")   { Description = "Path to the input markdown file", Required = true };
-    var outputOpt  = new Option<DirectoryInfo?>("--output") { Description = "Output directory (default: ./runs)" };
+    var stepsOpt   = new Option<bool>("--steps") { Description = "Stream each expert's output to stderr as the pipeline runs" };
     var varOpt     = new Option<string[]>("--var")
     {
         Description = "Set a context variable as key=value (repeatable, overrides let bindings)",
@@ -92,22 +91,18 @@ static Command BuildRunCommand()
     };
     varOpt.Arity = ArgumentArity.ZeroOrMore;
 
-    var cmd = new Command("run", "Run a mission against an input");
+    var cmd = new Command("run", "Run a mission");
     cmd.Add(missionArg);
-    cmd.Add(inputOpt);
-    cmd.Add(outputOpt);
+    cmd.Add(stepsOpt);
     cmd.Add(varOpt);
 
     cmd.SetAction(async result =>
     {
-        var mission   = ResolveMission(result.GetValue(missionArg));
-        var input     = result.GetValue(inputOpt)!;
-        var output    = result.GetValue(outputOpt);
-        var vars      = result.GetValue(varOpt) ?? [];
+        var mission    = ResolveMission(result.GetValue(missionArg));
+        var showSteps  = result.GetValue(stepsOpt);
+        var vars       = result.GetValue(varOpt) ?? [];
         var missionDir = mission.DirectoryName!;
-        var outputDir  = output?.FullName ?? "runs";
 
-        // Require init
         var lockPath = Path.Combine(missionDir, "fms.lock");
         if (!File.Exists(lockPath))
         {
@@ -120,9 +115,6 @@ static Command BuildRunCommand()
 
         var source = await TryReadFile(mission.FullName);
         if (source is null) return;
-
-        var inputText = await TryReadFile(input.FullName);
-        if (inputText is null) return;
 
         var ast = TryParse(source);
         if (ast is null) return;
@@ -143,12 +135,25 @@ static Command BuildRunCommand()
         var firstMission = ast.Declarations.OfType<MissionDeclaration>().FirstOrDefault();
         if (firstMission is null) { Die("No mission declaration found in mission file."); return; }
 
-        var options = new PipelineRunOptions(firstMission.Name, inputText, outputDir, parsedVars);
-        Console.WriteLine($"Running mission '{firstMission.Name}'...");
+        var options = new PipelineRunOptions(
+            firstMission.Name,
+            parsedVars,
+            showSteps ? Console.Error : null);
 
-        await new PipelineRunner(runner).RunAsync(ast, expertDefs, options);
+        Console.Error.WriteLine($"Running mission '{firstMission.Name}'...");
 
-        Console.WriteLine($"Done. Output: {Path.Combine(outputDir, firstMission.Name, "final.md")}");
+        var missionResult = await new PipelineRunner(runner).RunAsync(ast, expertDefs, options);
+
+        var outputDecl = ast.Outputs.FirstOrDefault(o => o.MissionName == firstMission.Name);
+        if (outputDecl?.FilePath is { } filePath)
+        {
+            await File.WriteAllTextAsync(filePath, missionResult.Text);
+            Console.Error.WriteLine($"Output written to {filePath}");
+        }
+        else
+        {
+            Console.WriteLine(missionResult.Text);
+        }
     });
 
     return cmd;

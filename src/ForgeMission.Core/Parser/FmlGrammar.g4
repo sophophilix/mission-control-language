@@ -3,7 +3,7 @@ grammar FmlGrammar;
 // Parser rules
 
 program
-    : useDecl* (letBinding | declaration)* EOF
+    : useDecl* (letBinding | declaration | outputDecl)* EOF
     ;
 
 useDecl
@@ -17,6 +17,10 @@ letBinding
 declaration
     : mission
     | expert
+    ;
+
+outputDecl
+    : OUTPUT LPAREN UPPER_ID (COMMA STRING)? RPAREN
     ;
 
 mission
@@ -65,6 +69,7 @@ MISSION : 'mission' ;
 EXPERT  : 'expert'  ;
 WITH    : 'with'    ;
 ENV     : 'env'     ;
+OUTPUT  : 'output'  ;
 PIPE    : '|>'      ;
 EQUALS  : '='       ;
 LPAREN  : '('       ;

@@ -1,0 +1,7 @@
+version: 1
+sources:
+- ./experts
+experts:
+  PitchWriter:
+    source: ./experts
+    path: /Users/ameerdeen/progs/fml/missions/elevator-pitch/experts/PitchWriter/expert.md

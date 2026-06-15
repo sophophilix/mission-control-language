@@ -16,9 +16,9 @@ public class MafExpertRunner(IChatClient chatClient) : IExpertRunner
         Dictionary<string, object> context,
         CancellationToken ct = default)
     {
-        var userMessage = context.TryGetValue("output", out var output)
+        var userMessage = context.TryGetValue("output", out var output) && !string.IsNullOrWhiteSpace(output?.ToString())
             ? output.ToString()!
-            : string.Empty;
+            : "Begin.";
 
         var systemPrompt = ContextInterpolator.Interpolate(expert.SystemPrompt, context);
 

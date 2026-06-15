@@ -71,9 +71,11 @@ Thin entry point. Parses arguments, wires up dependencies via DI, delegates to C
 
 | Command | Description |
 |---------|-------------|
-| `fml run <mission.fml> --input <input.md>` | Run a mission |
-| `fml validate <mission.fml>` | Validate all experts exist and pipeline is well-formed |
-| `fml list experts` | List available experts in the current directory |
+| `fms init [mission.fml]` | Resolve expert sources and generate fms.lock |
+| `fms run [mission.fml]` | Run a mission (self-contained — no input file required) |
+| `fms validate [mission.fml]` | Validate all experts exist and pipeline is well-formed |
+| `fms list experts` | List available experts |
+| `fms expert init <Name>` | Scaffold a new expert directory |
 
 ---
 

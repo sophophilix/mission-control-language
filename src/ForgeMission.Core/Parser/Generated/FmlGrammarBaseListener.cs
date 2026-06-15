@@ -85,6 +85,18 @@ public partial class FmlGrammarBaseListener : IFmlGrammarListener {
 	/// <param name="context">The parse tree.</param>
 	public virtual void ExitDeclaration([NotNull] FmlGrammarParser.DeclarationContext context) { }
 	/// <summary>
+	/// Enter a parse tree produced by <see cref="FmlGrammarParser.outputDecl"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterOutputDecl([NotNull] FmlGrammarParser.OutputDeclContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="FmlGrammarParser.outputDecl"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitOutputDecl([NotNull] FmlGrammarParser.OutputDeclContext context) { }
+	/// <summary>
 	/// Enter a parse tree produced by <see cref="FmlGrammarParser.mission"/>.
 	/// <para>The default implementation does nothing.</para>
 	/// </summary>

@@ -46,41 +46,28 @@ public class MafExpertRunnerIntegrationTests
     {
         Skip.If(string.IsNullOrWhiteSpace(ApiKey), "OPENAI_API_KEY not set — skipping integration test");
 
-        var outDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        Directory.CreateDirectory(outDir);
+        var ast = FmlParser.Parse("""
+            mission TestMission =
+                Summariser
+                |> Reviewer
+            """);
 
-        try
+        var experts = new Dictionary<string, ExpertDefinition>
         {
-            var ast = FmlParser.Parse("""
-                mission TestMission =
-                    Summariser
-                    |> Reviewer
-                """);
+            ["Summariser"] = new("Summariser", "Text", "Summary",
+                "You are a concise summariser. Summarise the input in exactly one sentence."),
+            ["Reviewer"]   = new("Reviewer", "Summary", "Review",
+                "You are a reviewer. Say whether the summary you received is concise. Reply with only 'Yes' or 'No'.")
+        };
 
-            var experts = new Dictionary<string, ExpertDefinition>
-            {
-                ["Summariser"] = new("Summariser", "Text", "Summary",
-                    "You are a concise summariser. Summarise the input in exactly one sentence."),
-                ["Reviewer"]   = new("Reviewer", "Summary", "Review",
-                    "You are a reviewer. Say whether the summary you received is concise. Reply with only 'Yes' or 'No'.")
-            };
+        var stepWriter = new StringWriter();
+        var runner     = new PipelineRunner(new MafExpertRunner(BuildChatClient()));
+        var options    = new PipelineRunOptions("TestMission", StepWriter: stepWriter);
 
-            var runner  = new PipelineRunner(new MafExpertRunner(BuildChatClient()));
-            var options = new PipelineRunOptions("TestMission", "The sky is blue because of Rayleigh scattering.", outDir);
+        var result = await runner.RunAsync(ast, experts, options);
 
-            await runner.RunAsync(ast, experts, options);
-
-            var step1 = await File.ReadAllTextAsync(Path.Combine(outDir, "TestMission", "01-Summariser.md"));
-            var step2 = await File.ReadAllTextAsync(Path.Combine(outDir, "TestMission", "02-Reviewer.md"));
-            var final = await File.ReadAllTextAsync(Path.Combine(outDir, "TestMission", "final.md"));
-
-            Assert.False(string.IsNullOrWhiteSpace(step1));
-            Assert.False(string.IsNullOrWhiteSpace(step2));
-            Assert.Equal(step2.Trim(), final.Trim());
-        }
-        finally
-        {
-            Directory.Delete(outDir, recursive: true);
-        }
+        Assert.False(string.IsNullOrWhiteSpace(result.Text));
+        Assert.Contains("Summariser", stepWriter.ToString());
+        Assert.Contains("Reviewer", stepWriter.ToString());
     }
 }

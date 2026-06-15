@@ -5,7 +5,7 @@ namespace ForgeMission.Core.Runtime;
 
 public class PipelineRunner(IExpertRunner expertRunner)
 {
-    public async Task RunAsync(
+    public async Task<MissionResult> RunAsync(
         Program ast,
         Dictionary<string, ExpertDefinition> experts,
         PipelineRunOptions options,
@@ -18,13 +18,7 @@ public class PipelineRunner(IExpertRunner expertRunner)
                 $"Mission '{options.MissionName}' not found in .fml file");
 
         var context = SeedContext(ast, options);
-
-        var steps = Flatten(mission.Pipeline, ast);
-
-        var runDir = Path.Combine(options.OutputDirectory, options.MissionName);
-        Directory.CreateDirectory(runDir);
-
-        var stepNumber = 1;
+        var steps   = Flatten(mission.Pipeline, ast);
 
         foreach (var step in steps)
         {
@@ -35,35 +29,33 @@ public class PipelineRunner(IExpertRunner expertRunner)
                     $"Expert '{step.ExpertName}' not found. " +
                     "Run 'fml validate' to check your mission before running.");
 
-            // Merge step-level with-clause bindings into context
             foreach (var binding in step.With)
                 context[binding.Key] = ResolveBindingValue(binding.Value, context);
 
+            if (options.StepWriter is { } sw)
+                await sw.WriteLineAsync($"→ {step.ExpertName}...");
+
             var output = await expertRunner.RunAsync(expert, context, ct);
 
-            var filename = $"{stepNumber:D2}-{step.ExpertName}.md";
-            await File.WriteAllTextAsync(Path.Combine(runDir, filename), output, ct);
+            if (options.StepWriter is { } sw2)
+                await sw2.WriteLineAsync($"{output}\n");
 
             context["output"] = output;
-            stepNumber++;
         }
 
-        var final = context.TryGetValue("output", out var last) ? last.ToString()! : string.Empty;
-        await File.WriteAllTextAsync(Path.Combine(runDir, "final.md"), final, ct);
+        var text = context.TryGetValue("output", out var last) ? last.ToString()! : string.Empty;
+        return new MissionResult(options.MissionName, text);
     }
 
     private static Dictionary<string, object> SeedContext(Program ast, PipelineRunOptions options)
     {
         var context = new Dictionary<string, object>(StringComparer.Ordinal);
 
-        // Resolve let bindings (env() calls happen here at runtime)
         foreach (var binding in ast.Bindings)
             context[binding.Name] = ResolveLetValue(binding.Value, binding.Name);
 
-        // Seed initial user input as "output" (the chained result key)
-        context["output"] = options.InputText;
+        context["output"] = string.Empty;
 
-        // --var CLI flags override let bindings
         if (options.Vars is { } vars)
             foreach (var (key, value) in vars)
                 context[key] = value;
@@ -122,7 +114,6 @@ public class PipelineRunner(IExpertRunner expertRunner)
 
         if (decls.TryGetValue(step.ExpertName, out var decl))
         {
-            // Composite expert — expand its pipeline; with-clause from parent step is dropped
             foreach (var inner in decl.Pipeline.Steps)
                 FlattenStep(inner, decls, result, new HashSet<string>(visited, StringComparer.Ordinal));
         }

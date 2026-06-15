@@ -325,11 +325,11 @@ fms init mission.fms
 # Validate — checks all experts resolve, no circular refs, lock file is current
 fms validate mission.fms
 
-# Run a mission against an input
-fms run mission.fms --input input.md
+# Run a mission
+fms run mission.fms
 
 # Override let bindings at run time
-fms run mission.fms --input input.md --var goal="Redesign for ARM"
+fms run mission.fms --var goal="Redesign for ARM"
 
 # List available experts
 fms list experts

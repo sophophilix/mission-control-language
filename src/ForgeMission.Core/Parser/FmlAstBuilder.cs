@@ -16,7 +16,11 @@ internal class FmlAstBuilder : FmlGrammarBaseVisitor<object?>
             .Select(d => (Declaration)Visit(d)!)
             .ToList();
 
-        return new Program(uses, bindings, declarations);
+        var outputs = ctx.outputDecl()
+            .Select(o => (OutputDeclaration)Visit(o)!)
+            .ToList();
+
+        return new Program(uses, bindings, declarations, outputs);
     }
 
     public override object? VisitUseDecl(FmlGrammarParser.UseDeclContext ctx)
@@ -27,6 +31,13 @@ internal class FmlAstBuilder : FmlGrammarBaseVisitor<object?>
         var name  = ctx.LOWER_ID().GetText();
         var value = ParseLetValue(ctx.value());
         return new LetBinding(name, value);
+    }
+
+    public override object? VisitOutputDecl(FmlGrammarParser.OutputDeclContext ctx)
+    {
+        var missionName = ctx.UPPER_ID().GetText();
+        var filePath    = ctx.STRING() is { } s ? StripQuotes(s.GetText()) : null;
+        return new OutputDeclaration(missionName, filePath);
     }
 
     public override object? VisitDeclaration(FmlGrammarParser.DeclarationContext ctx)

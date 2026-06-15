@@ -4,14 +4,8 @@ using ForgeMission.Core.Runtime;
 
 namespace ForgeMission.Tests.Runtime;
 
-public class PipelineRunnerTests : IDisposable
+public class PipelineRunnerTests
 {
-    private readonly string _outDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-
-    public PipelineRunnerTests() => Directory.CreateDirectory(_outDir);
-
-    public void Dispose() => Directory.Delete(_outDir, recursive: true);
-
     private static ExpertDefinition Expert(string name) =>
         new(name, "Input", "Output", $"You are {name}.");
 
@@ -19,17 +13,16 @@ public class PipelineRunnerTests : IDisposable
         names.ToDictionary(n => n, Expert, StringComparer.Ordinal);
 
     [Fact]
-    public async Task SingleStep_CallsRunnerOnce_WritesOutput()
+    public async Task SingleStep_CallsRunnerOnce_ReturnsOutput()
     {
-        var ast     = FmlParser.Parse("mission BuildOperator = KubernetesArchitect");
-        var stub    = new StubExpertRunner();
-        var runner  = new PipelineRunner(stub);
-        var options = new PipelineRunOptions("BuildOperator", "initial input", _outDir);
-
-        await runner.RunAsync(ast, Experts("KubernetesArchitect"), options);
+        var ast    = FmlParser.Parse("mission BuildOperator = KubernetesArchitect");
+        var stub   = new StubExpertRunner();
+        var result = await new PipelineRunner(stub)
+            .RunAsync(ast, Experts("KubernetesArchitect"), new PipelineRunOptions("BuildOperator"));
 
         Assert.Single(stub.Calls);
         Assert.Equal("KubernetesArchitect", stub.Calls[0].ExpertName);
+        Assert.Equal("BuildOperator", result.MissionName);
     }
 
     [Fact]
@@ -44,56 +37,57 @@ public class PipelineRunnerTests : IDisposable
 
         var stub = new StubExpertRunner((name, ctx) =>
             $"Output from {name} given [{ctx["output"]}]");
-        var runner = new PipelineRunner(stub);
-        var options = new PipelineRunOptions("BuildOperator", "initial input", _outDir);
 
-        await runner.RunAsync(ast, Experts("KubernetesArchitect", "SecurityArchitect", "PrincipalReviewer"), options);
+        await new PipelineRunner(stub)
+            .RunAsync(ast, Experts("KubernetesArchitect", "SecurityArchitect", "PrincipalReviewer"),
+                      new PipelineRunOptions("BuildOperator"));
 
         Assert.Equal(3, stub.Calls.Count);
-        Assert.Equal("initial input",
+        Assert.Equal(string.Empty,
             stub.Calls[0].Context["output"].ToString());
-        Assert.Equal("Output from KubernetesArchitect given [initial input]",
+        Assert.Equal("Output from KubernetesArchitect given []",
             stub.Calls[1].Context["output"].ToString());
-        Assert.Equal("Output from SecurityArchitect given [Output from KubernetesArchitect given [initial input]]",
+        Assert.Equal("Output from SecurityArchitect given [Output from KubernetesArchitect given []]",
             stub.Calls[2].Context["output"].ToString());
     }
 
     [Fact]
-    public async Task OutputFiles_HaveCorrectNamesAndNumbering()
+    public async Task Result_ContainsLastStepOutput()
+    {
+        var ast = FmlParser.Parse("""
+            mission BuildOperator =
+                KubernetesArchitect
+                |> PrincipalReviewer
+            """);
+
+        var stub   = new StubExpertRunner((name, _) => $"Output from {name}");
+        var result = await new PipelineRunner(stub)
+            .RunAsync(ast, Experts("KubernetesArchitect", "PrincipalReviewer"),
+                      new PipelineRunOptions("BuildOperator"));
+
+        Assert.Equal("Output from PrincipalReviewer", result.Text);
+    }
+
+    [Fact]
+    public async Task StepWriter_ReceivesEachStepOutput()
     {
         var ast = FmlParser.Parse("""
             mission BuildOperator =
                 KubernetesArchitect
                 |> SecurityArchitect
-                |> PrincipalReviewer
             """);
 
-        await new PipelineRunner(new StubExpertRunner())
-            .RunAsync(ast, Experts("KubernetesArchitect", "SecurityArchitect", "PrincipalReviewer"),
-                      new PipelineRunOptions("BuildOperator", "input", _outDir));
-
-        var runDir = Path.Combine(_outDir, "BuildOperator");
-        Assert.True(File.Exists(Path.Combine(runDir, "01-KubernetesArchitect.md")));
-        Assert.True(File.Exists(Path.Combine(runDir, "02-SecurityArchitect.md")));
-        Assert.True(File.Exists(Path.Combine(runDir, "03-PrincipalReviewer.md")));
-    }
-
-    [Fact]
-    public async Task FinalMd_MatchesLastStepOutput()
-    {
-        var ast = FmlParser.Parse("""
-            mission BuildOperator =
-                KubernetesArchitect
-                |> PrincipalReviewer
-            """);
-
-        var stub = new StubExpertRunner((name, _) => $"Output from {name}");
+        var sw     = new StringWriter();
+        var stub   = new StubExpertRunner((name, _) => $"Output from {name}");
         await new PipelineRunner(stub)
-            .RunAsync(ast, Experts("KubernetesArchitect", "PrincipalReviewer"),
-                      new PipelineRunOptions("BuildOperator", "input", _outDir));
+            .RunAsync(ast, Experts("KubernetesArchitect", "SecurityArchitect"),
+                      new PipelineRunOptions("BuildOperator", StepWriter: sw));
 
-        var finalContent = await File.ReadAllTextAsync(Path.Combine(_outDir, "BuildOperator", "final.md"));
-        Assert.Equal("Output from PrincipalReviewer", finalContent);
+        var written = sw.ToString();
+        Assert.Contains("→ KubernetesArchitect...", written);
+        Assert.Contains("→ SecurityArchitect...", written);
+        Assert.Contains("Output from KubernetesArchitect", written);
+        Assert.Contains("Output from SecurityArchitect", written);
     }
 
     [Fact]
@@ -111,7 +105,7 @@ public class PipelineRunnerTests : IDisposable
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             new PipelineRunner(new StubExpertRunner())
                 .RunAsync(ast, Experts("KubernetesArchitect", "SecurityArchitect"),
-                          new PipelineRunOptions("BuildOperator", "input", _outDir),
+                          new PipelineRunOptions("BuildOperator"),
                           cts.Token));
     }
 
@@ -125,8 +119,7 @@ public class PipelineRunnerTests : IDisposable
 
         var stub = new StubExpertRunner();
         await new PipelineRunner(stub)
-            .RunAsync(ast, Experts("KubernetesArchitect"),
-                      new PipelineRunOptions("BuildOperator", "input", _outDir));
+            .RunAsync(ast, Experts("KubernetesArchitect"), new PipelineRunOptions("BuildOperator"));
 
         Assert.Equal("Design a K8s operator", stub.Calls[0].Context["goal"].ToString());
     }
@@ -141,8 +134,7 @@ public class PipelineRunnerTests : IDisposable
 
         var stub = new StubExpertRunner();
         await new PipelineRunner(stub)
-            .RunAsync(ast, Experts("KubernetesArchitect"),
-                      new PipelineRunOptions("BuildOperator", "input", _outDir));
+            .RunAsync(ast, Experts("KubernetesArchitect"), new PipelineRunOptions("BuildOperator"));
 
         Assert.Equal("terse", stub.Calls[0].Context["style"].ToString());
     }
@@ -159,7 +151,7 @@ public class PipelineRunnerTests : IDisposable
         var vars = new Dictionary<string, string> { ["goal"] = "overridden" };
         await new PipelineRunner(stub)
             .RunAsync(ast, Experts("KubernetesArchitect"),
-                      new PipelineRunOptions("BuildOperator", "input", _outDir, vars));
+                      new PipelineRunOptions("BuildOperator", vars));
 
         Assert.Equal("overridden", stub.Calls[0].Context["goal"].ToString());
     }
@@ -175,7 +167,7 @@ public class PipelineRunnerTests : IDisposable
         var ex = Assert.Throws<InvalidOperationException>(() =>
             new PipelineRunner(new StubExpertRunner())
                 .RunAsync(ast, Experts("KubernetesArchitect"),
-                          new PipelineRunOptions("BuildOperator", "input", _outDir))
+                          new PipelineRunOptions("BuildOperator"))
                 .GetAwaiter().GetResult());
 
         Assert.Contains("FMLTEST_MISSING_VAR_XYZ", ex.Message);

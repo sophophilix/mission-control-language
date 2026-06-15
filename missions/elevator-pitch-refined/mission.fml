@@ -1,0 +1,11 @@
+use "./experts"
+
+let product = "an app that turns voice memos into structured tasks"
+
+mission RefinedPitch(product) =
+    PitchDrafter
+    |> PitchCritic
+    |> PitchReviser
+    |> PitchJudge
+
+output(RefinedPitch)

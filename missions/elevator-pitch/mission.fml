@@ -1,0 +1,8 @@
+use "./experts"
+
+let product = "an app that turns voice memos into structured tasks"
+
+mission QuickPitch(product) =
+    PitchWriter
+
+output(QuickPitch)

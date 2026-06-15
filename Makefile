@@ -41,6 +41,9 @@ install: ## Publish single-file binary to ~/.local/bin
 		-o $(INSTALL_DIR)
 	@echo "Installed: $(INSTALL_DIR)/fml"
 
+demo: install ## Install then run the build-operator sample mission end-to-end
+	cd missions/build-operator && fml init && fml run
+
 clean: ## Remove build artefacts (bin/ and obj/)
 	dotnet clean src/
 	find src/ -type d \( -name bin -o -name obj \) | xargs rm -rf
