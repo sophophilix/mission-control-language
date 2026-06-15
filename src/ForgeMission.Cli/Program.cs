@@ -29,7 +29,7 @@ static Command BuildInitCommand()
 
     cmd.SetAction(async result =>
     {
-        var mission = result.GetValue(missionArg)!;
+        var mission = ResolveMission(result.GetValue(missionArg));
         var missionDir = mission.DirectoryName!;
 
         var source = await TryReadFile(mission.FullName);
@@ -355,7 +355,7 @@ static string ExpertTemplate(string name) => $"""
     """;
 
 static FileInfo ResolveMission(FileInfo? arg)
-    => arg ?? new FileInfo("mission.fml");
+    => new FileInfo(Path.GetFullPath(arg?.FullName ?? "mission.fml"));
 
 static void Die(string message)
 {
