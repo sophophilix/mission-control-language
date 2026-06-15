@@ -9,15 +9,18 @@ A minimal language for expressing how a problem should be reasoned about — as 
 Forge Mission Language lets you define a **mission** — a problem or desired outcome — and express how it should be reasoned about as a pipeline of **experts**.
 
 ```fsharp
-mission BuildOperator =
+let goal    = "Design a production-grade K8s build operator"
+let persona = "Principal SRE, Tekton specialist"
+
+mission BuildOperatorDesign(goal, persona) =
     KubernetesArchitect
     |> SecurityArchitect
-    |> PrincipalReviewer
+    |> PrincipalReviewer with { style = "terse ADR" }
 ```
 
 This is not an execution plan. It is a reasoning structure. Each expert applies a lens, refines the previous output, and passes a better-constrained result to the next. The `|>` operator is progressive refinement, not function composition.
 
-The language has three primitives: `mission`, `expert`, and `|>`. That is intentional.
+The language has five constructs: `mission`, `expert`, `|>`, `let`, and `with`. That is intentional.
 
 Experts are the composable unit. Over time, a registry of experts representing common reasoning capabilities — security review, cost analysis, risk assessment, principal review — can be assembled, versioned, and reused across many missions and problem domains. Most problems in IT are not novel; they are familiar problem shapes applied to new contexts. A well-stocked registry of experts makes that reuse explicit.
 
@@ -76,26 +79,44 @@ FML addresses all of these by making the reasoning structure a first-class artif
 
 ## Syntax
 
-The language has three primitives:
+### Primitives
 
-| Primitive | Meaning |
+| Construct | Meaning |
 |-----------|---------|
 | `mission` | A problem or desired outcome |
 | `expert`  | A reusable reasoning capability |
 | `\|>`      | Progressive refinement / expert composition |
+| `let`     | Bind a value into the context bag |
+| `with`    | Override context keys for a specific step |
 
-Identifiers are PascalCase. Keywords are lowercase. This is enforced by the grammar, not convention — experts are proper nouns representing roles, and the visual distinction from keywords matters when reading a pipeline.
+Expert names are PascalCase. Variable names and keywords are lowercase. This is enforced by the grammar — experts are proper nouns representing roles, and the visual distinction from keywords matters when reading a pipeline.
 
-### Defining a mission
+### A complete mission
 
 ```fsharp
-mission BuildOperator =
+let goal    = "Design a production-grade K8s build operator"
+let persona = "Principal SRE, Tekton specialist"
+
+mission BuildOperatorDesign(goal, persona) =
     KubernetesArchitect
     |> SecurityArchitect
-    |> PrincipalReviewer
+    |> PrincipalReviewer with { style = "terse ADR" }
 ```
 
-### Defining a composed expert
+`let` bindings seed a context bag that flows through every step. Expert system prompts use `{{goal}}`, `{{persona}}`, `{{style}}` placeholders — interpolated at runtime before each step runs.
+
+### Environment variables
+
+API keys and secrets stay out of source files via `env()`:
+
+```fsharp
+let apiKey = env("OPENAI_API_KEY")
+let model  = env("FML_MODEL", "gpt-4o-mini")   // second arg = default
+```
+
+`env()` resolves at runtime when seeding the context bag. Missing required vars fail with a clear error before any expert runs.
+
+### Composing experts
 
 Experts can be composed from other experts, giving the language recursive decomposition:
 
@@ -106,26 +127,68 @@ expert KubernetesArchitect =
     |> ReliabilityArchitect
 ```
 
+### Per-step overrides
+
+`with` injects or overrides context keys for a single step without affecting the rest of the pipeline:
+
+```fsharp
+mission BuildOperatorDesign =
+    KubernetesArchitect
+    |> PrincipalReviewer with { style = "terse ADR", audience = "C-suite" }
+```
+
 ### Expert definitions (markdown-backed)
 
-Each expert is backed by a markdown file describing its reasoning role, inputs, and outputs. Expert definitions are intentionally portable — a `SecurityReviewer` applies equally to a Kubernetes architecture, a Terraform module audit, or a Go service design. The reasoning capability is domain-agnostic even when the problem is not. Experts are designed to be shared, versioned as OCI artifacts, and sourced from a registry:
+Each leaf expert is backed by a markdown file. The system prompt uses `{{key}}` placeholders:
 
 ```markdown
 ---
 name: KubernetesArchitect
-input: MissionBrief
-output: ArchitectureProposal
+input: Task description
+output: Kubernetes architecture design
 ---
 
-You are a Kubernetes platform architect.
+You are a senior Kubernetes architect.
 
-Your job is to:
-- understand the mission
-- propose a practical architecture
-- identify tradeoffs
-- explain operational risks
-- produce a clear architecture proposal
+Goal: {{goal}}
+Perspective: {{persona}}
+
+Produce a concrete architecture covering CRD design, controller structure, RBAC, and operational concerns.
 ```
+
+---
+
+## Variable resolution order
+
+From lowest to highest precedence:
+
+1. `let` binding (including `env()` calls)
+2. `with { }` clause on a step (merges into context before that step)
+3. `--var key=value` CLI flag (overrides everything at run time)
+
+---
+
+## Grammar
+
+```antlr
+program    : (letBinding | declaration)* EOF ;
+letBinding : 'let' LOWER_ID '=' value ;
+declaration : mission | expert ;
+mission    : 'mission' UPPER_ID params? '=' pipeline ;
+expert     : 'expert'  UPPER_ID params? '=' pipeline ;
+params     : '(' LOWER_ID (',' LOWER_ID)* ')' ;
+pipeline   : step ('|>' step)* ;
+step       : UPPER_ID withClause? ;
+withClause : 'with' '{' binding (',' binding)* '}' ;
+binding    : LOWER_ID '=' value ;
+value      : STRING | LOWER_ID | envCall ;
+envCall    : 'env' '(' STRING (',' STRING)? ')' ;
+STRING     : '"' (~["\r\n])* '"' ;
+UPPER_ID   : [A-Z][a-zA-Z0-9]* ;
+LOWER_ID   : [a-z][a-zA-Z0-9]* ;
+```
+
+The parser is generated by ANTLR4 from [`src/ForgeMission.Core/Parser/FmlGrammar.g4`](src/ForgeMission.Core/Parser/FmlGrammar.g4).
 
 ---
 
@@ -244,34 +307,31 @@ This is the long-term purpose of the registry: not just reuse, but accessibility
 
 > Expert composition improves reasoning quality, consistency, and outcomes compared to a single general-purpose prompt.
 
-The first prototype exists to test this. The `build-operator` example is the initial test case: run the same problem through a composed mission and through a single prompt, and compare the output quality, consistency, and reviewability.
+The `build-operator` example tests this: the same problem is run through a composed mission and a single general-purpose prompt, and the outputs are compared for quality, consistency, and reviewability. Findings are documented in [`docs/findings.md`](docs/findings.md).
 
 ---
 
-## MVP scope
+## CLI
 
-The MVP focuses on the language and a minimal runtime. It is not a production agent framework.
-
-### In scope
-
-- Hand-written parser for `.fml` files
-- Sequential pipeline execution
-- Markdown-backed expert definitions
-- One LLM client abstraction
-- CLI runner (`fml run`)
-- Saved run outputs per step
-
-### CLI
-
-```bash
+```pwsh
+# Run a mission
 fml run examples/build-operator/mission.fml --input examples/build-operator/input.md
+
+# Override let bindings at run time
+fml run examples/build-operator/mission.fml --input input.md --var goal="Redesign for ARM"
+
+# Validate without running
+fml validate examples/build-operator/mission.fml
+
+# List available experts
+fml list experts --experts examples/build-operator/experts
 ```
 
-### Output
+Output lands in `runs/<MissionName>/` (gitignored):
 
 ```text
 runs/
-  build-operator/
+  BuildOperatorDesign/
     01-KubernetesArchitect.md
     02-SecurityArchitect.md
     03-PrincipalReviewer.md
@@ -282,7 +342,7 @@ runs/
 
 ## Non-goals
 
-The following are explicitly out of scope for the initial language and runtime:
+The following are explicitly out of scope for the language:
 
 - Low-level tool call syntax
 - Retry and error-handling mechanics
@@ -301,63 +361,39 @@ The language should remain small unless a new construct clearly improves reasoni
 ```text
 forge-mission-language/
   README.md
+  docs/
+    plan.md               # hub — all phases
+    findings.md           # Phase 7 hypothesis validation
+    design/               # language design, architecture, methodology
+    phases/               # per-phase specs and results
   src/
-    ForgeMission.Core/        # Parser, AST, pipeline runner, LLM client abstraction
-    ForgeMission.Cli/         # CLI entrypoint (fml run ...)
+    ForgeMission.Core/    # Parser (ANTLR4), AST, pipeline runner, LLM abstraction
+    ForgeMission.Cli/     # CLI entrypoint (fml run / validate / list)
+    ForgeMission.Tests/   # Unit and integration tests
   examples/
     build-operator/
       mission.fml
       input.md
       experts/
-        KubernetesArchitect.md
-        SecurityArchitect.md
-        PrincipalReviewer.md
-  runs/                       # gitignored — output of fml run
+  runs/                   # gitignored — output of fml run
 ```
-
----
-
-## Implementation plan
-
-### Phase 1 — Language and parser
-
-- Define the `.fml` grammar (`mission`, `expert`, `|>`)
-- Write a hand-written recursive-descent parser in C#
-- Produce an AST: `MissionDeclaration`, `ExpertDeclaration`, `Pipeline`
-- Write unit tests for the parser
-
-### Phase 2 — Expert loader
-
-- Load expert markdown files by name from an `experts/` directory
-- Parse YAML frontmatter (`name`, `input`, `output`)
-- Validate that all experts referenced in a mission exist
-
-### Phase 3 — Pipeline runner
-
-- Execute the pipeline sequentially
-- Pass the previous expert's output as context to the next
-- Write each step's output to `runs/<mission-name>/NN-<ExpertName>.md`
-
-### Phase 4 — LLM client
-
-- Abstract the LLM call behind a single interface (`ILlmClient`)
-- Implement one concrete client (Anthropic Claude or Azure OpenAI)
-- Inject the expert system prompt and prior output as context
-
-### Phase 5 — CLI
-
-- `fml run <mission.fml> --input <input.md>` — run a mission
-- `fml validate <mission.fml>` — check that all experts exist and the pipeline is valid
-- `fml list experts` — list available experts in the current directory
-
-### Phase 6 — Validation
-
-- Build the `build-operator` example end-to-end
-- Run it against the testable hypothesis
-- Document findings
 
 ---
 
 ## Status
 
-Early prototype. Language design and parser are not yet implemented.
+Working prototype. All nine phases complete.
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| 1 | Project scaffold | Done |
+| 2 | Parser | Done |
+| 3 | Expert loader | Done |
+| 4 | Pipeline runner | Done |
+| 5 | MAF adapter (OpenAI via Microsoft Agent Framework) | Done |
+| 6 | CLI (`fml run`, `fml validate`, `fml list experts`) | Done |
+| 7 | Validation — build-operator end-to-end, hypothesis tested | Done |
+| 8 | ANTLR migration — hand-rolled parser replaced | Done |
+| 9 | Variables — `let`, params, `with`, `env()`, context bag runtime | Done |
+
+See [`docs/plan.md`](docs/plan.md) for the full implementation plan.
