@@ -25,12 +25,16 @@
 | [Phase 18 — Drop MAF](phases/phase-18-drop-maf.md) | Replace `MafExpertRunner` with `DirectExpertRunner` (direct `IChatClient` calls). Remove `Microsoft.Agents.AI` packages. Primary AOT unblocking step. | Done |
 | Phase 19 — Agent Runtime Design | Design how an `agent` declaration spawns, manages conversational context/continuity, and surfaces missions behind OpenAI-compatible and native interfaces. Covers: agent grammar, runtime lifecycle, session management, interface adapters. | Design |
 | Phase 20 — Parser Project Extraction | Move `ForgeMission.Core/Parser` into a standalone `ForgeMission.Parser` project. Clean compiler/runtime boundary; enables reuse in tooling (language server, IDE plugins). Do after Phase 11 when seams are clear from experience. | Planned |
+| Phase 21 — Parallel Steps + Named Outputs | `[A, B, C]` bracket syntax runs experts concurrently; each step's output is stored in the context bag under `{{StepName.output}}` rather than overwriting `{{output}}`. Enables fan-out/fan-in patterns. Motivated by UC-2 (trading signals) and UC-1 (image analysis). | Design |
+| Phase 22 — Non-LLM Expert Kinds | `kind` field in expert frontmatter (`llm` default, `onnx`, `http`). Pluggable runner dispatch — ONNX runner reads numeric context keys, writes score back; HTTP runner calls an external scoring endpoint. Context bag gains typed values alongside strings. Motivated by UC-3 (log anomaly detection). | Design |
 
 ## Under discussion
 
 | Topic | Description |
 |-------|-------------|
 | Skills and Tools | Review hub/spoke architecture for expert-level tool-calling support (function calls, MCP tools, shell commands). Decide scope, grammar extension, and AOT-safe dispatch before committing to an implementation phase. |
+| Parallel steps runtime model | Decide whether parallel steps use Task.WhenAll (simple) or a channel-based streaming approach (better for token streaming). Consider cancellation on first failure. |
+| Context bag typing | Currently all values are strings. Typed values (float, bool, byte[]) needed for non-LLM stages. Decide schema: loose dictionary with type tags vs. strongly-typed envelope. |
 
 ## Design docs
 
@@ -41,3 +45,4 @@
 | [MAF Research](design/maf.md) | Microsoft Agent Framework 1.0 spike findings |
 | [Methodology](design/methodology.md) | The broader engineering approach MCL fits into |
 | [Why MCL exists](why.md) | Origin, core thesis, methodology, thinking models |
+| [Use Cases](use-cases.md) | Concrete scenarios driving language feature design (image analysis, trading signals, log anomaly detection) |
