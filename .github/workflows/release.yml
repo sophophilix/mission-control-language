@@ -10,6 +10,9 @@ on:
 permissions:
   contents: write   # create tags, releases, upload assets
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   # ── 1. Tag the commit and open a draft release ──────────────────────────────
   prepare:
