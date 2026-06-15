@@ -19,15 +19,19 @@ endif
 INSTALL_DIR := $(HOME)/.local/bin
 CLI         := src/ForgeMission.Cli
 
-.PHONY: build test install clean
+.PHONY: help build test install clean
+.DEFAULT_GOAL := help
 
-build:
+help:
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+
+build: ## Build the solution (debug)
 	dotnet build src/
 
-test:
+test: ## Run all tests
 	dotnet test src/
 
-install:
+install: ## Publish single-file binary to ~/.local/bin
 	dotnet publish $(CLI) \
 		-c Release \
 		-r $(RID) \
@@ -37,6 +41,6 @@ install:
 		-o $(INSTALL_DIR)
 	@echo "Installed: $(INSTALL_DIR)/fml"
 
-clean:
+clean: ## Remove build artefacts (bin/ and obj/)
 	dotnet clean src/
-	find src/ -name bin -o -name obj | xargs rm -rf
+	find src/ -type d \( -name bin -o -name obj \) | xargs rm -rf
