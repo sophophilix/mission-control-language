@@ -23,7 +23,9 @@ public class ExpertLoader(string expertsDirectory)
         var experts = new Dictionary<string, ExpertDefinition>(StringComparer.Ordinal);
         foreach (var (name, entry) in lockFile.Experts)
         {
-            var path = Path.IsPathRooted(entry.Path)
+            var path = entry.Path.StartsWith("~/")
+                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), entry.Path[2..].Replace('/', Path.DirectorySeparatorChar))
+                : Path.IsPathRooted(entry.Path)
                 ? entry.Path
                 : Path.GetFullPath(Path.Combine(lockFileDirectory, entry.Path));
             experts[name] = ParseFile(path);

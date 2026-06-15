@@ -27,7 +27,7 @@ return await rootCommand.Parse(args).InvokeAsync();
 static Command BuildInitCommand()
 {
     var missionArg  = new Argument<FileInfo?>("mission") { Description = "Path to the .mcl mission file (default: mission.mcl)", Arity = ArgumentArity.ZeroOrOne };
-    var refreshOpt  = new Option<bool>("--refresh") { Description = "Re-pull OCI experts even if already present in ./experts" };
+    var refreshOpt  = new Option<bool>("--refresh") { Description = "Re-pull OCI experts even if already present in ~/.forge/experts" };
 
     var cmd = new Command("init", "Resolve expert sources and generate mcl.lock");
     cmd.Add(missionArg);
@@ -47,39 +47,35 @@ static Command BuildInitCommand()
 
         Console.WriteLine("Resolving experts...\n");
 
-        // Pull OCI experts declared in the .mcl into ./experts
+        // --- OCI experts: pull to ~/.forge/experts/<registry>/<name>/<version>/expert.md
         var ociDecls = ast.Declarations.OfType<ExpertDeclaration>()
             .Where(e => e.Source is not null)
             .ToList();
 
-        if (ociDecls.Count > 0)
+        var lockFile = new LockFile();
+
+        foreach (var decl in ociDecls)
         {
-            var expertsDir = Path.Combine(missionDir, SourceResolver.DefaultExpertsDir);
-            Directory.CreateDirectory(expertsDir);
+            var src      = decl.Source!;
+            var slash    = src.Registry.IndexOf('/');
+            var registry = slash >= 0 ? src.Registry[..slash] : src.Registry;
+            var ociName  = slash >= 0 ? src.Registry[(slash + 1)..] : src.Registry;
+            var cachePath = ForgeCache.ExpertMdPath(registry, ociName, src.Version);
 
-            foreach (var decl in ociDecls)
+            if (File.Exists(cachePath) && !refresh)
             {
-                var dest = Path.Combine(expertsDir, decl.Name, "expert.md");
-                if (File.Exists(dest) && !refresh)
-                {
-                    Console.WriteLine($"  ✓ {decl.Name}  (cached)");
-                    continue;
-                }
-
-                var src = decl.Source!;
-                // Split "ghcr.io/katasec/forge-kubernetes-architect" into registry + name
-                var slash  = src.Registry.IndexOf('/');
-                var registry = slash >= 0 ? src.Registry[..slash] : src.Registry;
-                var name     = slash >= 0 ? src.Registry[(slash + 1)..] : src.Registry;
-
+                Console.WriteLine($"  ✓ {decl.Name}  (cached)");
+            }
+            else
+            {
                 Console.Write($"  ↓ {decl.Name}  ({src.Registry}:{src.Version}) ... ");
                 try
                 {
                     var token = CredentialStore.GetToken(registry);
                     using var client = new OciClient(token);
-                    var content = await client.PullExpertAsync(registry, name, src.Version);
-                    Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
-                    await File.WriteAllTextAsync(dest, content);
+                    var content = await client.PullExpertAsync(registry, ociName, src.Version);
+                    Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
+                    await File.WriteAllTextAsync(cachePath, content);
                     Console.WriteLine("done");
                 }
                 catch (OciAuthException ex)
@@ -95,33 +91,38 @@ static Command BuildInitCommand()
                     return;
                 }
             }
+
+            // Store path as ~/.forge/... so the lock file is portable across machines
+            var home         = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var portablePath = "~" + cachePath[home.Length..].Replace(Path.DirectorySeparatorChar, '/');
+            lockFile.Experts[decl.Name] = new LockFileExpert
+            {
+                Source = $"{src.Registry}:{src.Version}",
+                Path   = portablePath
+            };
         }
 
-        Dictionary<string, ResolvedExpert> catalog;
-        try
+        // --- Local experts: discover from ./experts
+        var localCatalog = new Dictionary<string, ResolvedExpert>(StringComparer.Ordinal);
+        var localExpertsDir = Path.Combine(missionDir, SourceResolver.DefaultExpertsDir);
+        if (Directory.Exists(localExpertsDir))
         {
-            catalog = new SourceResolver().Resolve(missionDir);
+            try { localCatalog = new SourceResolver().Resolve(missionDir); }
+            catch (MclException ex) { Die(ex.Message); return; }
         }
-        catch (MclException ex)
+
+        foreach (var (name, expert) in localCatalog.OrderBy(k => k.Key))
         {
-            Die(ex.Message);
-            return;
+            if (lockFile.Experts.ContainsKey(name)) continue; // OCI takes precedence if same name
+            var relativePath = Path.GetRelativePath(missionDir, expert.ExpertMdPath);
+            lockFile.Experts[name] = new LockFileExpert { Source = expert.Source, Path = relativePath };
         }
 
-        Console.WriteLine($"\n  ✓ experts  ({catalog.Count} found)");
-
+        var totalCount = lockFile.Experts.Count;
+        Console.WriteLine($"\n  ✓ experts  ({totalCount} found)");
         Console.WriteLine("\nResolved:");
-        foreach (var (name, _) in catalog.OrderBy(k => k.Key))
-            Console.WriteLine($"  {name}");
-
-        var lockFile = LockFileIO.Build(catalog, missionDir);
-
-        // Record OCI source refs for experts pulled from a registry
-        foreach (var decl in ociDecls)
-        {
-            if (lockFile.Experts.TryGetValue(decl.Name, out var entry))
-                entry.Source = $"{decl.Source!.Registry}:{decl.Source.Version}";
-        }
+        foreach (var (name, entry) in lockFile.Experts.OrderBy(k => k.Key))
+            Console.WriteLine($"  {name,-30} {entry.Source}");
 
         var lockPath = Path.Combine(missionDir, "mcl.lock");
         LockFileIO.Write(lockPath, lockFile);
@@ -174,12 +175,15 @@ static Command BuildRunCommand()
         var ast = TryParse(source);
         if (ast is null) return;
 
-        // Pass 2: assert OCI experts have been pulled
-        var expertsDir = Path.Combine(missionDir, SourceResolver.DefaultExpertsDir);
+        // Pass 2: assert OCI experts exist in ~/.forge/experts cache
         foreach (var decl in ast.Declarations.OfType<ExpertDeclaration>().Where(e => e.Source is not null))
         {
-            var expertMd = Path.Combine(expertsDir, decl.Name, "expert.md");
-            if (!File.Exists(expertMd))
+            var src      = decl.Source!;
+            var slash    = src.Registry.IndexOf('/');
+            var registry = slash >= 0 ? src.Registry[..slash] : src.Registry;
+            var ociName  = slash >= 0 ? src.Registry[(slash + 1)..] : src.Registry;
+            var cachePath = ForgeCache.ExpertMdPath(registry, ociName, src.Version);
+            if (!File.Exists(cachePath))
             {
                 Die($"MCL010 Expert '{decl.Name}' not resolved — run 'forge init' to pull remote experts");
                 return;
