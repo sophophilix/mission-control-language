@@ -4,14 +4,14 @@
 
 use "./experts"
 
-// LLM configuration — set MCL_MODEL to override the default
+// LLM provider — override via MCL_PROVIDER, MCL_API_KEY, MCL_MODEL, MCL_ENDPOINT
 let provider = env("MCL_PROVIDER", "openai")
-let apiKey  = env("MCL_API_KEY")
-let model   = env("MCL_MODEL", "gpt-4o-mini")
+let apiKey   = env("MCL_API_KEY")
+let model    = env("MCL_MODEL", "gpt-4o-mini")
 
 // Mission inputs
-let goal    = "Design a production-grade K8s build operator"
-let persona = "Principal SRE, Tekton specialist"
+let goal     = "Design a production-grade K8s build operator"
+let persona  = "Principal SRE, Tekton specialist"
 
 mission BuildOperatorDesign(goal, persona) =
     KubernetesArchitect             // drafts CRDs, controller structure, RBAC
