@@ -71,11 +71,11 @@ Thin entry point. Parses arguments, wires up dependencies via DI, delegates to C
 
 | Command | Description |
 |---------|-------------|
-| `mcl init [mission.mcl]` | Resolve expert sources and generate mcl.lock |
-| `mcl run [mission.mcl]` | Run a mission (self-contained — no input file required) |
-| `mcl validate [mission.mcl]` | Validate all experts exist and pipeline is well-formed |
-| `mcl list experts` | List available experts |
-| `mcl expert init <Name>` | Scaffold a new expert directory |
+| `forge init [mission.mcl]` | Resolve expert sources and generate mcl.lock |
+| `forge run [mission.mcl]` | Run a mission (self-contained — no input file required) |
+| `forge validate [mission.mcl]` | Validate all experts exist and pipeline is well-formed |
+| `forge list experts` | List available experts |
+| `forge expert init <Name>` | Scaffold a new expert directory |
 
 ---
 

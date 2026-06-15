@@ -1,6 +1,6 @@
 // Loop demo — naive single-shot (no retry, no judge)
 // Pair this with loop-demo/mission.mcl to see the difference.
-// Run: make demo-naive
+// Run: make demo-naive  (forge run)
 
 use "./experts"
 

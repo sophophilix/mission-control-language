@@ -11,8 +11,8 @@ A minimal scripting language for staging LLM experts into reliable reasoning pip
 ```bash
 export MCL_API_KEY=sk-...
 
-mcl init       # resolve experts, generate mcl.lock
-mcl run        # run the mission, output to stdout
+forge init       # resolve experts, generate mcl.lock
+forge run        # run the mission, output to stdout
 ```
 
 ---
@@ -55,28 +55,28 @@ The mental model is a pipeline of reviewers, not a call stack.
 
 ```bash
 # Resolve expert sources and write mcl.lock
-mcl init
+forge init
 
 # Check all experts resolve, pipeline is well-formed, lock file is current
-mcl validate
+forge validate
 
 # Run the mission — output to stdout
-mcl run
+forge run
 
 # Stream each expert's progress to stderr as the pipeline runs
-mcl run --steps
+forge run --steps
 
 # Override any let binding at run time
-mcl run --var goal="Redesign for ARM64"
+forge run --var goal="Redesign for ARM64"
 
 # Scaffold a new expert directory
-mcl expert init SecurityArchitect
+forge expert init SecurityArchitect
 
 # List experts in the current directory
-mcl list experts
+forge list experts
 ```
 
-`mcl run` requires an `mcl.lock` — init is not optional. This mirrors Terraform's
+`forge run` requires an `mcl.lock` — init is not optional. This mirrors Terraform's
 `plan` / `apply` discipline: resolve first, then run.
 
 ---
@@ -86,9 +86,9 @@ mcl list experts
 By default the mission result goes to stdout — pipeable like any CLI tool:
 
 ```bash
-mcl run                          # stdout
-mcl run > report.md              # redirect
-mcl run | pbcopy                 # pipe
+forge run                          # stdout
+forge run > report.md              # redirect
+forge run | pbcopy                 # pipe
 ```
 
 Declare the destination in the mission file to make it explicit:
@@ -178,9 +178,9 @@ let endpoint = env("MCL_ENDPOINT", "")           // optional — required for Az
 
 ```bash
 export MCL_API_KEY=sk-...
-mcl run                                     # openai + gpt-4o-mini
-mcl run --var model=gpt-4o                  # different model, same provider
-mcl run --var provider=azure --var endpoint=https://my.openai.azure.com
+forge run                                     # openai + gpt-4o-mini
+forge run --var model=gpt-4o                  # different model, same provider
+forge run --var provider=azure --var endpoint=https://my.openai.azure.com
 ```
 
 `with` overrides context for a single step only:

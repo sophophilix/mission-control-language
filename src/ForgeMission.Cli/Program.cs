@@ -10,7 +10,7 @@ using Azure.AI.OpenAI;
 using OpenAI;
 using MclProgram = ForgeMission.Core.Parser.Program;
 
-var rootCommand = new RootCommand("mcl — Mission Control Language runtime");
+var rootCommand = new RootCommand("forge — Mission Control Language runtime");
 rootCommand.Add(BuildInitCommand());
 rootCommand.Add(BuildRunCommand());
 rootCommand.Add(BuildValidateCommand());
@@ -108,7 +108,7 @@ static Command BuildRunCommand()
         var lockPath = Path.Combine(missionDir, "mcl.lock");
         if (!File.Exists(lockPath))
         {
-            Die("MCL007 Mission not initialised — run 'mcl init' first.");
+            Die("MCL007 Mission not initialised — run 'forge init' first.");
             return;
         }
 
@@ -215,7 +215,7 @@ static Command BuildValidateCommand()
         // Warn if lock file is absent or stale
         if (!File.Exists(lockPath))
         {
-            Console.Error.WriteLine("warning: MCL006 mcl.lock not found — run 'mcl init' to generate it");
+            Console.Error.WriteLine("warning: MCL006 mcl.lock not found — run 'forge init' to generate it");
         }
         else
         {
@@ -224,7 +224,7 @@ static Command BuildValidateCommand()
             var currentSources = ast.Uses.Select(u => u.Source).ToHashSet(StringComparer.Ordinal);
             var lockedSources  = lockFile.Sources.ToHashSet(StringComparer.Ordinal);
             if (!currentSources.SetEquals(lockedSources))
-                Console.Error.WriteLine("warning: MCL006 mcl.lock is stale — run 'mcl init' to update it");
+                Console.Error.WriteLine("warning: MCL006 mcl.lock is stale — run 'forge init' to update it");
         }
 
         if (!File.Exists(lockPath))
