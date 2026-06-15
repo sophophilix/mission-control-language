@@ -1,7 +1,7 @@
 # Mission Control Language (MCL)
 
 **Expert** = reusable intelligence  
-**Mission** = reasoning pattern  
+**Mission** = codified thinking model  
 **Agent**   = endpoint / runtime facade
 
 That is the architecture. Everything else follows from it.
@@ -10,11 +10,13 @@ That is the architecture. Everything else follows from it.
 
 ## What MCL is
 
-MCL is a language for expressing expertise and reasoning patterns.
+MCL is a language for codifying thinking models.
 
 Not a workflow engine. Not a prompt template system. Not an agent framework.
 
-The core insight is that intelligence is composable — and that composition should be expressible as language, not code.
+Most AI tooling focuses on *what* to ask. MCL focuses on *how to think* — and keeps that separate from *who does the thinking*.
+
+Experts supply the intelligence. Missions supply the thinking model that directs it. These are separate, composable concerns — and that separation is what makes complex reasoning reproducible.
 
 ---
 
@@ -47,9 +49,9 @@ An Expert answers: **Who performs this work?**
 
 ### Mission
 
-A Mission is a reasoning pattern.
+A Mission is a codified thinking model.
 
-A mission describes how expertise flows — which experts collaborate, in what order, and how their outputs accumulate.
+A mission makes explicit *how* a problem should be reasoned through — which experts engage, in what order, and how their outputs build on each other. It is the structure of thought, written down.
 
 ```fsharp
 mission BuildOperatorDesign(goal, persona) =
@@ -58,19 +60,21 @@ mission BuildOperatorDesign(goal, persona) =
     |> PrincipalReviewer with { style = "terse ADR" }
 ```
 
-The mental model is expertise flow, not function composition:
+The mental model is a chain of expertise, not a call stack:
 
 ```
-KubernetesArchitect
+KubernetesArchitect   ← drafts the design
         ↓
-SecurityArchitect
+SecurityArchitect     ← hardens it
         ↓
-PrincipalReviewer
+PrincipalReviewer     ← signs off
 ```
 
 Each stage receives the accumulated context and all prior outputs, then applies its domain expertise before passing forward.
 
-A Mission answers: **How should expertise collaborate?**
+Missions are reusable. The same thinking model can be applied to different goals, by different experts, in different contexts.
+
+A Mission answers: **How should this problem be thought through?**
 
 ---
 
@@ -147,7 +151,7 @@ mission RefinedPitch(product) =
     loop 3
 ```
 
-The language has one job: express how expertise flows.
+The language has one job: express how expertise is applied to a problem.
 
 ---
 
@@ -155,18 +159,18 @@ The language has one job: express how expertise flows.
 
 MCL is the language. Mission Control is the operating environment around it.
 
-Mission Control addresses a deeper problem: **context entropy**. Large monolithic context degrades LLM effectiveness. As a session accumulates work, precision degrades.
+Thinking models only work if the context they operate on stays coherent. Mission Control addresses a deeper problem: **context entropy** — the degradation of LLM effectiveness as monolithic context accumulates over long-running work.
 
-Mission Control's approach is hub/spoke knowledge organisation:
+Mission Control's answer is hub/spoke knowledge organisation:
 
 ```
-plan.md   ←  hub (index of intent)
+plan.md   ←  hub (index of intent and decisions)
     ├── phase-11.md
     ├── phase-12.md
     └── architecture.md
 ```
 
-The plan acts as an index. Individual tasks and decisions live in focused spoke documents. This keeps context targeted and continuity intact across long-running work.
+The plan acts as an index. Individual tasks and decisions live in focused spoke documents. This keeps context targeted and reasoning precise — regardless of how much work has accumulated.
 
 Longer term, Mission Control introduces the Session Continuity Protocol (SCP) — a protocol for maintaining plans, decisions, and context across sessions without blowup. The hub/spoke pattern is already in use throughout this project.
 
@@ -210,7 +214,7 @@ expert PrincipalReviewer =
     from "ghcr.io/katasec/forge-principal-reviewer"
     version "0.1.0"
 
-// Reasoning pattern
+// Thinking model
 mission BuildOperatorDesign(goal, persona) =
     KubernetesArchitect
     |> SecurityArchitect
