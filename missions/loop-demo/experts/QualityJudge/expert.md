@@ -16,5 +16,5 @@ It passes if ALL of the following are true:
 If it fails any criterion, respond with this JSON and nothing else:
 {"text": "<one sentence describing which criterion failed>", "status": "fail", "reason": "<criterion that failed>"}
 
-If it passes all criteria, respond with this JSON and nothing else:
-{"text": "<quote the strongest line from the explanation>", "status": "pass"}
+If it passes all criteria, respond with this JSON and nothing else — reproducing the full explanation verbatim as the text value:
+{"text": "<the full explanation verbatim, unchanged>", "status": "pass"}
