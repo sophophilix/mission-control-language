@@ -55,6 +55,24 @@ buffering until the `"text":` key starts and stopping at the closing quote.
 
 Without `--steps`: silent as today. Streaming only activates when `StepWriter` is set.
 
+## MAF Streaming API — Confirmed Available
+
+`ChatClientAgent.RunStreamingAsync` is confirmed in the MAF XML docs and returns
+`IAsyncEnumerable<AgentResponseUpdate>`. This is the same `ChatClientAgent` already
+used in `MafExpertRunner`, so no additional package references are needed.
+
+```csharp
+await foreach (var update in agent.RunStreamingAsync(userMessage, session, runOptions, ct))
+{
+    if (options.StepWriter is { } sw)
+        await sw.WriteAsync(update.Text);
+    sb.Append(update.Text);
+}
+```
+
+Confirmed by inspecting:
+`~/.nuget/packages/microsoft.agents.ai/1.10.0/lib/net10.0/Microsoft.Agents.AI.xml`
+
 ## Changes Required
 
 | File | Change |

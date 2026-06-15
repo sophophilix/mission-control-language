@@ -31,19 +31,33 @@ Downstream experts can read from it; the runtime forwards it untouched.
 
 ## JSON Output Contract
 
-The runtime injects a JSON schema instruction into every expert's system prompt. Expert authors
-do not write this — it is invisible to them. The LLM must respond with:
+MAF's `ChatClientAgent` exposes three structured output mechanisms via `Microsoft.Extensions.AI`:
 
-```json
-{
-  "text": "...",
-  "status": "pass",
-  "reason": null,
-  "meta": {}
-}
+| Option | API | Notes |
+|--------|-----|-------|
+| JSON mode | `ChatResponseFormat.Json` on `ChatClientAgentRunOptions.ChatOptions` | Guarantees valid JSON; we parse manually |
+| Schema-constrained | `ChatResponseFormat.ForJsonSchema<T>()` | Model must conform to `StepEnvelope` shape |
+| **Typed output** | `agent.RunAsync<T>(session, jsonSerializerOptions, runOptions, ct)` | MAF deserialises directly to `StepEnvelope` — preferred |
+
+**We use Option 3 — `RunAsync<StepEnvelope>`.**
+
+MAF infers the JSON schema from the C# type and handles deserialisation. No prompt injection
+of JSON format instructions needed. No manual `JsonDocument.Parse`. The expert system prompt
+stays pure prose.
+
+```csharp
+// MafExpertRunner — Phase 12 implementation
+var envelope = await agent.RunAsync<StepEnvelope>(
+    userMessage,
+    session,
+    AgentJsonUtilities.DefaultOptions,
+    new ChatClientAgentRunOptions(),
+    ct);
+return envelope;
 ```
 
-OpenAI JSON mode (`response_format: json_object`) is used to guarantee valid JSON.
+This was confirmed by inspecting the MAF XML docs at:
+`~/.nuget/packages/microsoft.agents.ai/1.10.0/lib/net10.0/Microsoft.Agents.AI.xml`
 
 ## Expert Authoring Convention
 
