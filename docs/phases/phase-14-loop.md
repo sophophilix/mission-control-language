@@ -132,9 +132,10 @@ Running mission 'RefinedPitch'... (attempt 3/3)
 
 | File | Change |
 |------|--------|
-| `FmlGrammar.g4` | Add `loopClause`, `LOOP`, `INT` tokens |
+| `FmsGrammar.g4` | Add `loopClause`, `LOOP`, `INT` tokens |
 | `Ast.cs` | Add `MaxLoops` to `MissionDeclaration` |
-| `FmlAstBuilder.cs` | Visit `loopClause` |
-| `Program.cs` | Retry loop in `run` command; inject `attempt` into vars each run |
+| `FmsAstBuilder.cs` | Visit `loopClause` |
+| `PipelineRunner.cs` | Own the retry loop; inject `attempt` and `max_loops` into context each attempt; write attempt progress to `StepWriter` |
+| `Program.cs` | No loop logic — calls `RunAsync` once; reads `MissionResult.Attempts` for any final status display |
 | `MissionResult.cs` | Add `Attempts` field |
 | Tests | Loop stops on first all-pass; exhausted loops surfaces last failure; `{{attempt}}` in context |
