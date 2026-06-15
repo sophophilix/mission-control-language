@@ -21,6 +21,7 @@
 | [Phase 14.5 — Loop Demo](phases/phase-14.5-loop-demo.md) | `ContextOverloaded` (drunk expert, always self-passes) + `QualityJudge` demo showing loop converging on quality | Done |
 | [Phase 15 — Token Streaming](phases/phase-15-streaming.md) | `IAsyncEnumerable<string>` from runner; chunks forwarded to `StepWriter` live; no more silent wait per expert | Done |
 | [Phase 16 — FML → MCL Rename](phases/phase-16-fms-rename.md) | Full rename: binary (mcl), extension (.mcl), grammar, generated parser classes, docs. | Done |
+| [Phase 17 — Provider Configuration](phases/phase-17-provider-config.md) | Make LLM provider fully configurable via `let` bindings (`provider`, `apiKey`, `model`, `endpoint`). Remove hardcoded OpenAI from CLI. | Not Started |
 
 ## Design docs
 

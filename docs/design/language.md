@@ -110,6 +110,34 @@ These are the only reserved variables. The set is intentionally minimal — ever
 comes from `let` bindings or `--var`. A new reserved variable requires a language design
 decision, not just a runtime change.
 
+### Reserved binding names (runtime configuration)
+
+Four `let` binding names are reserved for configuring the LLM provider. The runtime reads
+these from the resolved context bag before constructing the LLM client.
+
+| Binding | Canonical env var | Default | Purpose |
+|---------|-------------------|---------|---------|
+| `provider` | `MCL_PROVIDER` | `"openai"` | LLM provider: `openai`, `azure`, `anthropic` |
+| `apiKey` | `MCL_API_KEY` | — | API key for the chosen provider (required) |
+| `model` | `MCL_MODEL` | `"gpt-4o-mini"` | Model name passed to the provider |
+| `endpoint` | `MCL_ENDPOINT` | per-provider default | Base URL override — required for Azure, optional otherwise |
+
+Mission authors declare these as standard `let` bindings using `env()`. The canonical form:
+
+```fsharp
+let provider = env("MCL_PROVIDER", "openai")
+let apiKey   = env("MCL_API_KEY")
+let model    = env("MCL_MODEL", "gpt-4o-mini")
+// endpoint is omitted unless overriding the provider default
+```
+
+The `env()` call is a convention, not a requirement — authors may hardcode values or use
+any env var name they choose. The canonical `MCL_*` names are the recommended defaults.
+
+Per-provider default endpoints are maintained in the runtime's provider lookup table (see
+`docs/phases/phase-17-provider-config.md`). Azure has no universal default — `endpoint`
+must be declared when `provider = "azure"`.
+
 ### Strict subset
 
 The following constructs are explicitly excluded:
