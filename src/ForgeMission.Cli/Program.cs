@@ -6,6 +6,7 @@ using ForgeMission.Core.Resolution;
 using ForgeMission.Core.Runtime;
 using static ForgeMission.Core.Runtime.MissionStatus;
 using Microsoft.Extensions.AI;
+using Azure.AI.OpenAI;
 using OpenAI;
 using MclProgram = ForgeMission.Core.Parser.Program;
 
@@ -136,7 +137,7 @@ static Command BuildRunCommand()
 
         if (!seedContext.TryGetValue("apiKey", out var apiKeyObj) || string.IsNullOrWhiteSpace(apiKeyObj?.ToString()))
         {
-            Die("Mission must declare an API key: let apiKey = env(\"OPENAI_API_KEY\")");
+            Die("Mission must declare an API key: let apiKey = env(\"MCL_API_KEY\")");
             return;
         }
         if (!seedContext.TryGetValue("model", out var modelObj) || string.IsNullOrWhiteSpace(modelObj?.ToString()))
@@ -145,7 +146,15 @@ static Command BuildRunCommand()
             return;
         }
 
-        var runner = TryBuildRunner(apiKeyObj.ToString()!, modelObj.ToString()!);
+        var provider = seedContext.TryGetValue("provider", out var providerObj)
+            ? providerObj.ToString()!
+            : "openai";
+        var endpoint = seedContext.TryGetValue("endpoint", out var endpointObj)
+            ? endpointObj.ToString()!
+            : string.Empty;
+
+        var runner = TryBuildRunner(provider, apiKeyObj.ToString()!, modelObj.ToString()!, endpoint);
+        if (runner is null) return;
 
         var firstMission = ast.Declarations.OfType<MissionDeclaration>().FirstOrDefault();
         if (firstMission is null) { Die("No mission declaration found in mission file."); return; }
@@ -342,9 +351,47 @@ static bool TryValidate(MclProgram ast, Dictionary<string, ExpertDefinition> exp
     catch (ExpertLoadException ex) { Die(ex.Message); return false; }
 }
 
-static IExpertRunner TryBuildRunner(string apiKey, string model)
+static IExpertRunner? TryBuildRunner(string provider, string apiKey, string model, string endpoint)
 {
-    var chatClient = new OpenAIClient(apiKey).GetChatClient(model).AsIChatClient();
+    // Default endpoints per provider. null = SDK resolves internally.
+    var providerDefaults = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["openai"]    = null,
+        ["azure"]     = null,   // deployment-specific — must set MCL_ENDPOINT
+        ["anthropic"] = null,   // SDK resolves internally (not yet supported)
+    };
+
+    if (!providerDefaults.TryGetValue(provider, out var defaultEndpoint))
+    {
+        var supported = string.Join(", ", providerDefaults.Keys);
+        Die($"Unknown provider '{provider}'. Supported: {supported}");
+        return null;
+    }
+
+    var resolvedEndpoint = !string.IsNullOrWhiteSpace(endpoint) ? endpoint : defaultEndpoint;
+
+    IChatClient chatClient = provider.ToLowerInvariant() switch
+    {
+        "openai" => new OpenAIClient(apiKey).GetChatClient(model).AsIChatClient(),
+
+        "azure" when !string.IsNullOrWhiteSpace(resolvedEndpoint) =>
+            new AzureOpenAIClient(new Uri(resolvedEndpoint), new Azure.AzureKeyCredential(apiKey))
+                .GetChatClient(model).AsIChatClient(),
+
+        "azure" => null!,  // caught below
+
+        "anthropic" => throw new NotSupportedException(
+            "Anthropic provider is not yet supported — awaiting MAF Anthropic adapter."),
+
+        _ => null!
+    };
+
+    if (chatClient is null)
+    {
+        Die($"Provider '{provider}' requires an endpoint: let endpoint = env(\"MCL_ENDPOINT\")");
+        return null;
+    }
+
     return new MafExpertRunner(chatClient);
 }
 

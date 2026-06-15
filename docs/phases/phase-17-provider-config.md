@@ -1,6 +1,6 @@
 # Phase 17 — Provider Configuration
 
-**Status:** Not Started
+**Status:** Done
 
 ## Goal
 
@@ -88,13 +88,13 @@ Switch on `provider` to construct the right `IChatClient`:
 
 | # | Task | Status |
 |---|------|--------|
-| 1 | Update all mission files to use `MCL_API_KEY` instead of `OPENAI_API_KEY` | Not Started |
-| 2 | Add `provider` binding to all mission files | Not Started |
-| 3 | Add provider defaults lookup table to CLI | Not Started |
-| 4 | Implement endpoint resolution logic in `TryBuildRunner` | Not Started |
-| 5 | Implement `IChatClient` factory switching on `provider` | Not Started |
-| 6 | Add unit tests for error paths (unknown provider, missing azure endpoint) | Not Started |
-| 7 | Update `README.md` Variables section with the four canonical bindings | Not Started |
+| 1 | Update all mission files to use `MCL_API_KEY` instead of `OPENAI_API_KEY` | Done |
+| 2 | Add `provider` binding to all mission files | Done |
+| 3 | Add provider defaults lookup table to CLI | Done |
+| 4 | Implement endpoint resolution logic in `TryBuildRunner` | Done |
+| 5 | Implement `IChatClient` factory switching on `provider` | Done |
+| 6 | Add unit tests for error paths (unknown provider, missing azure endpoint) | Done |
+| 7 | Update `README.md` Variables section with the four canonical bindings | Done |
 
 ## Completion Condition
 

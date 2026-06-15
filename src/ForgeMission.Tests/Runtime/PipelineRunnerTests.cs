@@ -174,6 +174,80 @@ public class PipelineRunnerTests
         Assert.Contains("FMLTEST_MISSING_VAR_XYZ", ex.Message);
     }
 
+    // Phase 17 — provider configuration bindings
+
+    [Fact]
+    public async Task ProviderBindings_AllFourSeededInContext()
+    {
+        var ast = MclParser.Parse("""
+            let provider = env("MCL_PROVIDER", "openai")
+            let apiKey   = env("MCL_API_KEY")
+            let model    = env("MCL_MODEL", "gpt-4o-mini")
+            let endpoint = env("MCL_ENDPOINT", "")
+            mission Demo = Worker
+            """);
+
+        Environment.SetEnvironmentVariable("MCL_API_KEY", "sk-test");
+        try
+        {
+            var stub = new StubExpertRunner();
+            await new PipelineRunner(stub)
+                .RunAsync(ast, Experts("Worker"), new PipelineRunOptions("Demo"));
+
+            var ctx = stub.Calls[0].Context;
+            Assert.Equal("openai",      ctx["provider"].ToString());
+            Assert.Equal("sk-test",     ctx["apiKey"].ToString());
+            Assert.Equal("gpt-4o-mini", ctx["model"].ToString());
+            Assert.Equal("",            ctx["endpoint"].ToString());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("MCL_API_KEY", null);
+        }
+    }
+
+    [Fact]
+    public async Task ProviderBinding_VarFlagOverridesProvider()
+    {
+        var ast = MclParser.Parse("""
+            let provider = env("MCL_PROVIDER", "openai")
+            let apiKey   = env("MCL_API_KEY")
+            let model    = env("MCL_MODEL", "gpt-4o-mini")
+            mission Demo = Worker
+            """);
+
+        Environment.SetEnvironmentVariable("MCL_API_KEY", "sk-test");
+        try
+        {
+            var stub = new StubExpertRunner();
+            var vars = new Dictionary<string, string> { ["provider"] = "azure" };
+            await new PipelineRunner(stub)
+                .RunAsync(ast, Experts("Worker"), new PipelineRunOptions("Demo", vars));
+
+            Assert.Equal("azure", stub.Calls[0].Context["provider"].ToString());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("MCL_API_KEY", null);
+        }
+    }
+
+    [Fact]
+    public void MissingApiKey_ThrowsClearly()
+    {
+        var ast = MclParser.Parse("""
+            let apiKey = env("MCL_API_KEY")
+            mission Demo = Worker
+            """);
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            new PipelineRunner(new StubExpertRunner())
+                .RunAsync(ast, Experts("Worker"), new PipelineRunOptions("Demo"))
+                .GetAwaiter().GetResult());
+
+        Assert.Contains("MCL_API_KEY", ex.Message);
+    }
+
     // Phase 12 — StepEnvelope / fail-fast
 
     [Fact]

@@ -9,7 +9,7 @@ A minimal scripting language for staging LLM experts into reliable reasoning pip
 ## Quick start
 
 ```bash
-export OPENAI_API_KEY=sk-...
+export MCL_API_KEY=sk-...
 
 mcl init       # resolve experts, generate mcl.lock
 mcl run        # run the mission, output to stdout
@@ -157,8 +157,30 @@ via `{{key}}` in its system prompt.
 
 ```fsharp
 let goal   = "Design a build operator"
-let apiKey = env("OPENAI_API_KEY")              // from environment
-let model  = env("MCL_MODEL", "gpt-4o-mini")   // with default
+let apiKey = env("MCL_API_KEY")                  // from environment
+let model  = env("MCL_MODEL", "gpt-4o-mini")    // with default
+```
+
+### Provider configuration
+
+Four bindings are reserved for LLM provider configuration. The canonical env vars all
+use the `MCL_` prefix:
+
+```fsharp
+let provider = env("MCL_PROVIDER", "openai")     // openai | azure | anthropic
+let apiKey   = env("MCL_API_KEY")                // required — no default
+let model    = env("MCL_MODEL", "gpt-4o-mini")  // model name passed to the provider
+let endpoint = env("MCL_ENDPOINT", "")           // optional — required for Azure
+```
+
+`provider`, `model`, and `endpoint` all have defaults so most missions only need to set
+`MCL_API_KEY`. Override any of them via `--var` at run time:
+
+```bash
+export MCL_API_KEY=sk-...
+mcl run                                     # openai + gpt-4o-mini
+mcl run --var model=gpt-4o                  # different model, same provider
+mcl run --var provider=azure --var endpoint=https://my.openai.azure.com
 ```
 
 `with` overrides context for a single step only:
