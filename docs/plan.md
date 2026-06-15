@@ -29,4 +29,5 @@
 | [Language Design](design/language.md) | Grammar, syntax decisions, primitives, capitalisation rationale |
 | [Architecture](design/architecture.md) | Components, boundaries, dependency flow |
 | [MAF Research](design/maf.md) | Microsoft Agent Framework 1.0 spike findings |
-| [Methodology](design/methodology.md) | The broader engineering approach FML fits into |
+| [Methodology](design/methodology.md) | The broader engineering approach FMS fits into |
+| [Why FMS exists](why.md) | Origin, core thesis, methodology, thinking models |
