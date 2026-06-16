@@ -98,15 +98,32 @@ Reference: https://learn.microsoft.com/en-us/agent-framework/integrations/openai
 
 These were identified during design and need to be resolved before implementation begins.
 
-### 1. Session handling
+### 1. Session handling — RESOLVED
 
-OAI chat completions sends a `messages` array with the full conversation history. Two options:
+Agents are long-running conversations, not one-shot API wrappers. Session state must persist across requests.
 
-**Stateless** — each request is an independent mission run. The incoming `messages` array is flattened into context (e.g. last user message becomes `{{goal}}`), the mission runs fresh, and the response is returned. Simple, AOT-friendly, horizontally scalable.
+**Decision: stateful, local file for first pass.**
 
-**Stateful** — the agent maintains session state between requests. Prior outputs accumulate. Closer to a real conversational agent.
+Session history is stored under `~/.forge/sessions/<session-id>/` — consistent with the existing `~/.forge/` cache pattern. The interface is abstracted so the persistence provider can be swapped without touching the agent runtime:
 
-The stateless model is simpler and sufficient for most mission use cases today. Stateful requires session storage design (in-memory? external?) and is likely a later concern. **Recommendation: start stateless.**
+```csharp
+public interface ISessionStore
+{
+    Task<Session?> GetAsync(string sessionId, CancellationToken ct);
+    Task SaveAsync(Session session, CancellationToken ct);
+}
+```
+
+First implementation: `LocalFileSessionStore` (JSON files under `~/.forge/sessions/`).
+
+**DI note:** `Microsoft.Extensions.DependencyInjection` is AOT-compatible as of .NET 8+. The source generator handles reflection-free registration. Explicit registration works cleanly:
+
+```csharp
+services.AddSingleton<ISessionStore, LocalFileSessionStore>();
+services.AddSingleton<IAgentHost, OaiAgentHost>();
+```
+
+Swapping the persistence provider later is a one-line registration change — nothing else moves. `LocalFileSessionStore` is the right first-pass default; Redis or SQLite can be introduced when multi-instance or cross-restart persistence is needed.
 
 ### 2. Input mapping
 
