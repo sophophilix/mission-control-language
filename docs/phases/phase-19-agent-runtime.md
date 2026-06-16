@@ -125,21 +125,36 @@ services.AddSingleton<IAgentHost, OaiAgentHost>();
 
 Swapping the persistence provider later is a one-line registration change — nothing else moves. `LocalFileSessionStore` is the right first-pass default; Redis or SQLite can be introduced when multi-instance or cross-restart persistence is needed.
 
-### 2. Input mapping
+### 2. Input mapping — RESOLVED
 
-Today, missions take named parameters (`goal`, `persona`). An incoming chat message is a string. How does the agent map it?
+**Decision: convention over configuration. No mapping knobs.**
 
-Options:
-- **Convention**: last user message always maps to `{{goal}}` (or a configurable binding in `agent.yaml`)
-- **Explicit mapping in `agent.yaml`**:
-  ```yaml
-  inputs:
-    goal: "{{last_user_message}}"
-    persona: "Principal SRE"
-  ```
-- **Single-input missions**: require missions intended for agent use to declare a single `input` param
+A mission intended to be served as an agent declares `goal` as its single parameter — that is the slot the incoming user message fills. All other inputs are baked into the mission via `let` bindings.
 
-This is the most significant open question for the grammar and runtime. Needs a concrete decision before implementation.
+```fsharp
+let persona = "Principal SRE, Tekton specialist"   // baked into the mission
+
+mission BuildOperatorDesign(goal) =                // goal = incoming user message
+    KubernetesArchitect
+    |> SecurityArchitect
+    |> PrincipalReviewer
+```
+
+`forge serve` reads the mission, sees `goal` as the single parameter, and maps every incoming user message to it. No mapping config, no `inputs:` section in `agent.yaml`, no runtime knobs. The mission file is the single source of truth.
+
+**Design note:** this follows the project's general design philosophy — fewer moving parts, baked-in over dynamic. A mission that needs richer input mapping is a signal to revisit the mission design, not to add flexibility to the agent runtime.
+
+**`agent.yaml` stays minimal:**
+
+```yaml
+mission: ./mission.mcl
+port: 8080
+id: build-operator-v1
+```
+
+`id` is the agent's addressable identity — what OAI clients pass in the `model` field of their requests. `Katasec.AgentHost` handles the `id` → OAI `model` field translation internally. Users never interact with the OAI wire format detail.
+
+`id` was chosen over `model` (conflicts with the LLM model `let` binding in `.mcl`) and `name` (ambiguous between display name and identifier).
 
 ### 3. Auth
 
