@@ -164,9 +164,9 @@ Two distinct concerns:
 
 **Inbound (client → forge serve):** Skipped for now — YAGNI. ASP.NET Core's middleware pipeline means auth can be injected later without touching agent logic. No inbound auth in Phase 19.
 
-### 4. Model name advertised
+### 4. Model name advertised — RESOLVED
 
-OAI clients send a `model` field in the request. The agent needs to either accept any value or validate against the advertised `model` in `agent.yaml`. Needs a decision on whether to validate or ignore.
+Closed by the `id` decision in Question 2. The agent advertises itself as the value of `id` in `agent.yaml`. Any `model` field sent by an incoming OAI client request is ignored — the agent knows its own identity from its config. `Katasec.AgentHost` handles this internally.
 
 ---
 
