@@ -156,9 +156,13 @@ id: build-operator-v1
 
 `id` was chosen over `model` (conflicts with the LLM model `let` binding in `.mcl`) and `name` (ambiguous between display name and identifier).
 
-### 3. Auth
+### 3. Auth — RESOLVED
 
-How does `forge serve` authenticate incoming requests? Options: no auth (dev mode), static API key in `agent.yaml`, env var. Likely env var consistent with how `MCL_API_KEY` works today.
+Two distinct concerns:
+
+**Outbound (forge → LLM provider):** Already solved. `let apiKey = env("MCL_API_KEY")` in the `.mcl` file. No changes needed.
+
+**Inbound (client → forge serve):** Skipped for now — YAGNI. ASP.NET Core's middleware pipeline means auth can be injected later without touching agent logic. No inbound auth in Phase 19.
 
 ### 4. Model name advertised
 
