@@ -48,10 +48,11 @@ public sealed class MissionChatClient(
 
     // -------------------------------------------------------------------------
 
-    private PipelineRunOptions BuildOptions(string goal, TextWriter? stepWriter)
+    private PipelineRunOptions BuildOptions(string userMessage, TextWriter? stepWriter)
     {
-        var mission = ast.Declarations.OfType<MissionDeclaration>().First();
-        var vars    = new Dictionary<string, string>(StringComparer.Ordinal) { ["goal"] = goal };
+        var mission  = ast.Declarations.OfType<MissionDeclaration>().First();
+        var paramName = mission.Params.FirstOrDefault() ?? "goal";
+        var vars      = new Dictionary<string, string>(StringComparer.Ordinal) { [paramName] = userMessage };
         return new PipelineRunOptions(mission.Name, vars, stepWriter);
     }
 
