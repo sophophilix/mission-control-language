@@ -1,0 +1,165 @@
+# Phase 19 — Agent Runtime
+
+**Status:** Design  
+**Depends on:** Phase 11 (OCI), Phase 18 (Native AOT)
+
+---
+
+## What this phase delivers
+
+The ability to expose a mission as an OpenAI-compatible HTTP endpoint via `forge serve`.
+
+A user authors a `.mcl` file (the reasoning artifact) and an `agent.yaml` file (the hosting config). `forge serve` reads both and starts a server that accepts `/v1/chat/completions` requests, runs the mission, and streams the response back.
+
+---
+
+## Core design decisions
+
+### An agent is a mission exposed over an endpoint — nothing more
+
+The `agent` concept does not change how a mission works. It does not add new reasoning capabilities. It is purely an infrastructure concern: take an existing `.mcl` file and make it consumable over an HTTP endpoint.
+
+This means:
+- The `.mcl` file is authored by the person who designs the thinking model
+- The `agent.yaml` file is authored by the person who deploys it
+- Those can be the same person, but they don't have to be
+
+An ops team can take someone else's `.mcl` and write their own `agent.yaml` to deploy it — without touching the reasoning artifact.
+
+### One mission per `.mcl` file (explicit constraint)
+
+Every `.mcl` file encodes exactly one thinking model. This is not just an observed pattern — it is a design constraint.
+
+A `.mcl` file is to a mission what an `expert.md` file is to an expert: one file, one unit. Allowing multiple missions per file would pull MCL toward being a module system, which is outside the language's scope.
+
+This constraint makes the agent mapping trivial: one `.mcl` → one mission → one agent → one endpoint. No disambiguation is needed.
+
+### Two files, two concerns
+
+```
+missions/build-operator/
+  mission.mcl     ← reasoning artifact (experts, thinking model)
+  agent.yaml      ← infrastructure artifact (endpoint config)
+  mcl.lock        ← resolved expert references
+```
+
+**`mission.mcl`** — the language artifact. Declares experts, let bindings, and the mission (thinking model). Unchanged from today.
+
+**`agent.yaml`** — YAML format. References the mission file and carries only hosting concerns. YAML was chosen over a custom format to allow future nesting (auth config, TLS, multiple listeners) and to keep it inspectable by tooling.
+
+Example `agent.yaml`:
+
+```yaml
+mission: ./mission.mcl
+port: 8080
+model: build-operator-v1     # model name advertised to OAI clients
+```
+
+### `forge serve` is the new CLI verb
+
+```bash
+forge serve                  # looks for agent.yaml in current directory
+forge serve agent.yaml       # explicit path
+```
+
+Mirrors the existing pattern:
+- `forge init` activates the OCI grammar in `.mcl`
+- `forge run` executes the mission
+- `forge serve` activates the agent configuration in `agent.yaml`
+
+### `Katasec.AgentHost` is a separate library
+
+The OAI endpoint plumbing lives in a new library: `katasec/agent-host-dotnet`.
+
+This follows the same pattern as `katasec/oci-client-dotnet`:
+
+| Concern | MCL grammar | CLI verb | Library |
+|---------|-------------|----------|---------|
+| OCI experts | `from "registry" version "tag"` | `forge init` | `Katasec.OciClient` |
+| Agent hosting | `agent.yaml` | `forge serve` | `Katasec.AgentHost` |
+
+`Katasec.AgentHost` owns:
+- ASP.NET Core minimal API setup
+- `/v1/chat/completions` request/response shapes (STJ source-gen for AOT safety)
+- SSE streaming in OAI format
+- Session handling (see open questions)
+
+`Katasec.AgentHost` takes an `IChatClient` — it has no knowledge of MCL, missions, or experts. Forge wires a mission-backed `IChatClient` and hands it to the library. The library is independently useful for any `IChatClient` implementation.
+
+### MAF reference
+
+MAF (Microsoft Agent Framework) previously provided this OAI endpoint capability. It was dropped in Phase 18 because it was incompatible with Native AOT. `Katasec.AgentHost` is the AOT-safe replacement, scoped to exactly the capability needed.
+
+Reference: https://learn.microsoft.com/en-us/agent-framework/integrations/openai-endpoints
+
+---
+
+## Open questions
+
+These were identified during design and need to be resolved before implementation begins.
+
+### 1. Session handling
+
+OAI chat completions sends a `messages` array with the full conversation history. Two options:
+
+**Stateless** — each request is an independent mission run. The incoming `messages` array is flattened into context (e.g. last user message becomes `{{goal}}`), the mission runs fresh, and the response is returned. Simple, AOT-friendly, horizontally scalable.
+
+**Stateful** — the agent maintains session state between requests. Prior outputs accumulate. Closer to a real conversational agent.
+
+The stateless model is simpler and sufficient for most mission use cases today. Stateful requires session storage design (in-memory? external?) and is likely a later concern. **Recommendation: start stateless.**
+
+### 2. Input mapping
+
+Today, missions take named parameters (`goal`, `persona`). An incoming chat message is a string. How does the agent map it?
+
+Options:
+- **Convention**: last user message always maps to `{{goal}}` (or a configurable binding in `agent.yaml`)
+- **Explicit mapping in `agent.yaml`**:
+  ```yaml
+  inputs:
+    goal: "{{last_user_message}}"
+    persona: "Principal SRE"
+  ```
+- **Single-input missions**: require missions intended for agent use to declare a single `input` param
+
+This is the most significant open question for the grammar and runtime. Needs a concrete decision before implementation.
+
+### 3. Auth
+
+How does `forge serve` authenticate incoming requests? Options: no auth (dev mode), static API key in `agent.yaml`, env var. Likely env var consistent with how `MCL_API_KEY` works today.
+
+### 4. Model name advertised
+
+OAI clients send a `model` field in the request. The agent needs to either accept any value or validate against the advertised `model` in `agent.yaml`. Needs a decision on whether to validate or ignore.
+
+---
+
+## What is NOT in scope
+
+- Multiple missions per `.mcl` file
+- Agent-to-agent communication
+- Custom non-OAI protocols
+- Persistent session storage (Phase 19 scope is stateless)
+- Grammar changes to `.mcl` — the agent declaration lives in `agent.yaml`, not in the MCL language
+
+---
+
+## Implementation sketch (post-design)
+
+1. Create `katasec/agent-host-dotnet` repo
+   - AOT-safe ASP.NET Core minimal API
+   - OAI request/response POCOs with STJ source-gen
+   - SSE streaming
+   - Publishes to `nuget.pkg.github.com/katasec`
+
+2. Add `agent.yaml` schema and loader to `ForgeMission.Core`
+
+3. Add `forge serve` command to `ForgeMission.Cli`
+   - Reads `agent.yaml`
+   - Runs `forge init` check (experts must be resolved)
+   - Wires `PipelineRunner` behind an `IChatClient` adapter
+   - Hands to `Katasec.AgentHost`
+
+4. Add `Katasec.AgentHost` package reference to `ForgeMission.Cli.csproj`
+
+5. End-to-end test: `forge serve` → Open WebUI → mission runs → response streams back
