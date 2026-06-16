@@ -187,6 +187,53 @@ forge run     # run the mission, output to stdout
 
 ---
 
+## Running an agent
+
+An agent exposes a mission as an OpenAI-compatible endpoint. It runs in Docker using a pre-built `ghcr.io/katasec/forge` image — no local build step.
+
+Create an `agent.yaml` next to your mission:
+
+```yaml
+mission: ../../missions/loop-demo/mission.mcl
+port: 8080
+id: loop-demo-v1
+```
+
+Then start it:
+
+```bash
+forge agent start --agent-file agents/loop-demo/agent.yaml
+```
+
+The agent mounts your repository root into the container so relative expert and mission paths resolve correctly. `MCL_API_KEY`, `MCL_MODEL`, `MCL_PROVIDER`, and `MCL_ENDPOINT` are forwarded from the host environment automatically.
+
+Stop it with:
+
+```bash
+forge agent stop --agent-file agents/loop-demo/agent.yaml
+```
+
+---
+
+## Open WebUI
+
+`forge webui start` spins up [Open WebUI](https://github.com/open-webui/open-webui) connected to the running agent. Both containers join a shared `forge-net` Docker bridge network for inter-container DNS.
+
+```bash
+forge webui start --agent-file agents/loop-demo/agent.yaml
+# → http://localhost:3000
+```
+
+The agent appears in the model selector under its declared `id`. Stop with:
+
+```bash
+forge webui stop
+```
+
+> **Note:** the agent URL is stored in Open WebUI's internal database. If you switch to a different agent, run `forge webui stop` first — the next `forge webui start` will pick up the new agent.
+
+---
+
 ## Writing a mission
 
 A mission file is self-contained. It declares where experts come from, binds input values, and describes the reasoning pattern.
@@ -277,6 +324,11 @@ forge clean --registry ghcr.io                # purge one registry
 forge login ghcr.io --token <pat>             # save registry credentials
 forge expert init SecurityArchitect           # scaffold a new expert
 forge list experts                            # list local experts
+
+forge agent start --agent-file <path>         # start agent container (Docker)
+forge agent stop  --agent-file <path>         # stop and remove agent container
+forge webui start --agent-file <path>         # start Open WebUI connected to agent
+forge webui stop                              # stop and remove Open WebUI container
 ```
 
 `forge run` requires an `mcl.lock` — `forge init` is not optional.
