@@ -79,11 +79,26 @@ internal sealed class DockerProgressEvent
 
 public static class DockerCli
 {
-    private static readonly HttpClient Http = CreateClient();
+    private static readonly string SocketPath = ResolveSocketPath();
+    private static readonly HttpClient Http = CreateClient(SocketPath);
 
-    private static HttpClient CreateClient()
+    private static string ResolveSocketPath()
     {
-        var sockPath = "/var/run/docker.sock";
+        var dockerHost = Environment.GetEnvironmentVariable("DOCKER_HOST");
+        if (!string.IsNullOrEmpty(dockerHost) && dockerHost.StartsWith("unix://"))
+            return dockerHost[7..];
+
+        string[] candidates =
+        [
+            "/var/run/docker.sock",
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".docker/run/docker.sock"),
+        ];
+
+        return candidates.FirstOrDefault(File.Exists) ?? "/var/run/docker.sock";
+    }
+
+    private static HttpClient CreateClient(string sockPath)
+    {
         var handler = new SocketsHttpHandler
         {
             ConnectCallback = async (_, ct) =>
@@ -102,16 +117,16 @@ public static class DockerCli
     {
         try
         {
-            var resp = await Http.GetAsync("/v1.41/version");
+            var resp = await Http.GetAsync("/v1.47/version");
             if (!resp.IsSuccessStatusCode)
-                return (false, "not running — start Docker Desktop");
+                return (false, $"not running (socket: {SocketPath})");
             var json = await resp.Content.ReadAsStringAsync();
             var v = JsonSerializer.Deserialize(json, DockerJsonContext.Default.DockerVersionResponse);
             return (true, $"Docker Engine {v?.Version} ({v?.Os}/{v?.Arch})");
         }
         catch
         {
-            return (false, "not running — start Docker Desktop");
+            return (false, $"not running (socket: {SocketPath})");
         }
     }
 
@@ -119,7 +134,7 @@ public static class DockerCli
 
     public static async Task<bool> IsImagePresentAsync(string image)
     {
-        var resp = await Http.GetAsync($"/v1.41/images/{Uri.EscapeDataString(image)}/json");
+        var resp = await Http.GetAsync($"/v1.47/images/{Uri.EscapeDataString(image)}/json");
         return resp.StatusCode == HttpStatusCode.OK;
     }
 
@@ -130,7 +145,7 @@ public static class DockerCli
         var tag       = colonIdx >= 0 ? image[(colonIdx + 1)..] : "latest";
 
         var resp = await Http.PostAsync(
-            $"/v1.41/images/create?fromImage={Uri.EscapeDataString(fromImage)}&tag={Uri.EscapeDataString(tag)}",
+            $"/v1.47/images/create?fromImage={Uri.EscapeDataString(fromImage)}&tag={Uri.EscapeDataString(tag)}",
             null);
 
         if (!resp.IsSuccessStatusCode)
@@ -158,7 +173,7 @@ public static class DockerCli
 
     public static async Task<bool> NetworkExistsAsync(string name)
     {
-        var resp = await Http.GetAsync($"/v1.41/networks/{name}");
+        var resp = await Http.GetAsync($"/v1.47/networks/{name}");
         return resp.StatusCode == HttpStatusCode.OK;
     }
 
@@ -168,7 +183,7 @@ public static class DockerCli
         var body = JsonSerializer.Serialize(
             new DockerCreateNetworkRequest { Name = name, Driver = "bridge" },
             DockerJsonContext.Default.DockerCreateNetworkRequest);
-        var resp = await Http.PostAsync("/v1.41/networks/create",
+        var resp = await Http.PostAsync("/v1.47/networks/create",
             new StringContent(body, Encoding.UTF8, "application/json"));
         resp.EnsureSuccessStatusCode();
     }
@@ -178,7 +193,7 @@ public static class DockerCli
     public static async Task<bool> IsContainerRunningAsync(string name)
     {
         var f = Uri.EscapeDataString($"{{\"name\":[\"^/{name}$\"],\"status\":[\"running\"]}}");
-        var resp = await Http.GetAsync($"/v1.41/containers/json?filters={f}");
+        var resp = await Http.GetAsync($"/v1.47/containers/json?filters={f}");
         if (!resp.IsSuccessStatusCode) return false;
         var containers = JsonSerializer.Deserialize(
             await resp.Content.ReadAsStringAsync(),
@@ -189,7 +204,7 @@ public static class DockerCli
     public static async Task<bool> ContainerExistsAsync(string name)
     {
         var f = Uri.EscapeDataString($"{{\"name\":[\"^/{name}$\"]}}");
-        var resp = await Http.GetAsync($"/v1.41/containers/json?all=true&filters={f}");
+        var resp = await Http.GetAsync($"/v1.47/containers/json?all=true&filters={f}");
         if (!resp.IsSuccessStatusCode) return false;
         var containers = JsonSerializer.Deserialize(
             await resp.Content.ReadAsStringAsync(),
@@ -227,7 +242,7 @@ public static class DockerCli
 
         var body = JsonSerializer.Serialize(request, DockerJsonContext.Default.DockerCreateContainerRequest);
         var createResp = await Http.PostAsync(
-            $"/v1.41/containers/create?name={name}",
+            $"/v1.47/containers/create?name={name}",
             new StringContent(body, Encoding.UTF8, "application/json"));
 
         if (!createResp.IsSuccessStatusCode)
@@ -241,7 +256,7 @@ public static class DockerCli
             DockerJsonContext.Default.DockerCreateContainerResponse);
         var id = created?.Id ?? throw new InvalidOperationException("No container ID in response");
 
-        var startResp = await Http.PostAsync($"/v1.41/containers/{id}/start", null);
+        var startResp = await Http.PostAsync($"/v1.47/containers/{id}/start", null);
         if (!startResp.IsSuccessStatusCode)
         {
             var err = await startResp.Content.ReadAsStringAsync();
@@ -252,7 +267,7 @@ public static class DockerCli
     public static async Task StopAndRemoveAsync(string name)
     {
         var f = Uri.EscapeDataString($"{{\"name\":[\"^/{name}$\"]}}");
-        var resp = await Http.GetAsync($"/v1.41/containers/json?all=true&filters={f}");
+        var resp = await Http.GetAsync($"/v1.47/containers/json?all=true&filters={f}");
         if (!resp.IsSuccessStatusCode) return;
         var containers = JsonSerializer.Deserialize(
             await resp.Content.ReadAsStringAsync(),
@@ -260,7 +275,7 @@ public static class DockerCli
         if (containers is null || containers.Length == 0) return;
 
         var id = containers[0].Id;
-        await Http.PostAsync($"/v1.41/containers/{id}/stop", null);
-        await Http.DeleteAsync($"/v1.41/containers/{id}");
+        await Http.PostAsync($"/v1.47/containers/{id}/stop", null);
+        await Http.DeleteAsync($"/v1.47/containers/{id}");
     }
 }
