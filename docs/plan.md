@@ -28,6 +28,7 @@
 | [Phase 21 — Parallel Steps + Named Outputs](phases/phase-21-parallel-steps.md) | `[A, B, C]` bracket syntax runs experts concurrently; each step's output stored as `{{StepName.output}}`; fan-out/fan-in patterns. Motivated by image analysis (UC-1) and trading signals (UC-2). | Design |
 | [Phase 22 — Non-LLM Expert Kinds](phases/phase-22-non-llm-experts.md) | `kind` field in expert frontmatter (`llm` default, `onnx`, `http`). Static runner dispatch, no reflection. Context bag gains typed numeric values. Motivated by log anomaly detection (UC-3). | Design |
 | [Phase 23 — Container Commands](phases/phase-23-container-commands.md) | `forge agent start/stop` and `forge webui start/stop` — run agent and Open WebUI in Docker; shared prereq checker with Spectre.Console TUI; Process.Start docker CLI (AOT-safe). Hub + 4 spokes. | Done |
+| [Phase 24 — Copilot SDK Integration Tests](phases/phase-24-copilot-sdk-integration-tests.md) | Prove real AI coding agents (GitHub Copilot SDK, then Claude Code CLI) drive through an MCL mission end-to-end. OaiServer on a random port; BYOK points the agent at forge. Hub + 3 spokes. | Spoke 1+2 Done |
 
 ## Under discussion
 

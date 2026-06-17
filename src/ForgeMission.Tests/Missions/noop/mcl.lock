@@ -1,0 +1,5 @@
+version: 1
+experts:
+  PassThrough:
+    source: local
+    path: experts/PassThrough/expert.md

@@ -39,7 +39,7 @@ public class StubExpertRunner : IExpertRunner
     {
         ct.ThrowIfCancellationRequested();
         Calls.Add((expert.Name, new Dictionary<string, object>(context, StringComparer.Ordinal)));
-        yield return JsonSerializer.Serialize(_respond(expert.Name, context));
+        yield return _respond(expert.Name, context).Text;
         await Task.CompletedTask;
     }
 }

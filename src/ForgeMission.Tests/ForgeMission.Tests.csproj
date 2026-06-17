@@ -22,6 +22,20 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ForgeMission.Core\ForgeMission.Core.csproj" />
+    <ProjectReference Include="..\ForgeMission.Parser\ForgeMission.Parser.csproj" />
+    <ProjectReference Include="..\..\..\..\progs\oai-server-dotnet\src\Katasec.OaiServer\Katasec.OaiServer.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="GitHub.Copilot.SDK" Version="*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Missions/**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
