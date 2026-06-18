@@ -1,8 +1,12 @@
 # Phase 21 — Parallel Steps + Named Outputs
 
+> **Syntax decision (superseded):** This phase originally proposed `[A, B, C]` bracket syntax.
+> That decision was revised in Phase 25 Spoke 1. The syntax is now `parallel { }` block — parallelism
+> declared on the container, not inferred from an operator. This doc will be updated when Phase 25 Spoke 1 is executed.
+
 ## Goal
 
-Add bracket syntax for concurrent expert execution and give every step a named slot
+Add `parallel { }` block syntax for concurrent expert execution and give every step a named slot
 in the context bag, enabling fan-out/fan-in pipeline patterns.
 
 ---

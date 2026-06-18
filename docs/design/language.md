@@ -54,11 +54,34 @@ java -jar /tmp/antlr4-4.13.1-complete.jar -Dlanguage=CSharp -package ForgeMissio
 
 ## Syntax decisions
 
+### The `->` pipeline operator
+
+MCL uses `->` ("passes to") as the sequential composition operator.
+
+`->` is directional and neutral — a developer who has never seen MCL reads it correctly on first encounter. It means "the output of this step becomes the input of the next."
+
+`|>` was considered (F# pipe-forward) but rejected: F# developers expect `f |> g` to mean `g(f)` — function composition — which is subtly different from expert composition. `->` carries no prior-art semantics and does not create a false analogy.
+
+### `parallel { }` block
+
+Parallelism is declared on the container, not inferred from an operator between items. Experts inside the block run concurrently. `->` before and after the block means the same thing it always does — sequential hand-off.
+
+```fsharp
+mission Analysis(input) =
+    DataExtractor
+    -> parallel {
+        Summariser
+        FactChecker
+        Critic
+    }
+    -> Synthesiser
+```
+
+Each parallel expert's output is available in subsequent steps as `{{ExpertName}}` — the expert name is the variable name. The `as` keyword exists for the rare case where the same expert appears twice in one parallel block and names would collide; it is not needed in the common case.
+
 ### F#-inspired, not F#
 
-FML borrows F# syntax because the grammar is already well-specified, the `|>` pipe operator is culturally loaded with exactly the right meaning (progressive transformation), and developers can read it without learning anything new.
-
-FML does not embed in F# and does not use F# semantics. The `|>` operator in FML means sequential reasoning refinement, not function composition. This divergence is intentional and documented to avoid confusion.
+MCL borrows F# aesthetic (clean, expression-oriented, minimal punctuation) but does not embed in F# and does not use F# semantics. The `->` operator means sequential reasoning hand-off, not function application.
 
 ### Capitalisation
 
@@ -105,22 +128,31 @@ mission. They cannot be overridden by `let` bindings or `--var`.
 | `{{output}}` | Runtime, after each step | The previous step's text output. Empty string on the first step. |
 | `{{attempt}}` | Runtime, at the start of each loop iteration | Current attempt number, 1-based. Always `1` for missions without `loop`. |
 | `{{max_loops}}` | Runtime, from the mission's `loop N` declaration | Declared loop cap. Always `1` for missions without `loop`. |
+| `{{ExpertName}}` | Runtime, after each parallel step | Output of a named expert inside a `parallel { }` block. E.g. `{{Summariser}}`, `{{FactChecker}}`. Not set for sequential steps. |
 
 These are the only reserved variables. The set is intentionally minimal — everything else
 comes from `let` bindings or `--var`. A new reserved variable requires a language design
 decision, not just a runtime change.
 
-### Reserved binding names (runtime configuration)
+### Domain variables vs infrastructure variables
 
-Four `let` binding names are reserved for configuring the LLM provider. The runtime reads
-these from the resolved context bag before constructing the LLM client.
+Not all `let` bindings belong in `mission.mcl`. The rule is:
 
-| Binding | Canonical env var | Default | Purpose |
-|---------|-------------------|---------|---------|
-| `provider` | `MCL_PROVIDER` | `"openai"` | LLM provider: `openai`, `azure`, `anthropic` |
-| `apiKey` | `MCL_API_KEY` | — | API key for the chosen provider (required) |
-| `model` | `MCL_MODEL` | `"gpt-4o-mini"` | Model name passed to the provider |
-| `endpoint` | `MCL_ENDPOINT` | per-provider default | Base URL override — required for Azure, optional otherwise |
+> **Would this variable appear in an expert's system prompt?**
+> - Yes → it is a domain variable. It belongs in `mission.mcl`.
+> - No → it is an infrastructure variable. It belongs in `forge.toml`.
+
+Domain variables (`goal`, `persona`, `product`) are reasoning inputs. They flow through the context bag and into expert prompts via `{{key}}` placeholders. They belong close to the mission that uses them.
+
+Infrastructure variables (`provider`, `apiKey`, `model`, `endpoint`) configure the LLM runtime. They never appear in a prompt. They belong in `forge.toml` as named provider profiles, not in the mission file.
+
+This separation keeps `mission.mcl` a pure reasoning artifact — readable without knowing anything about the infrastructure running it.
+
+### Reserved binding names (infrastructure — moved to `forge.toml`)
+
+Provider configuration is declared in `forge.toml` as named profiles, not as `let` bindings in `mission.mcl`. See [Phase 25 — forge.toml](../phases/phase-25-spoke-2-forge-toml.md) for the schema.
+
+The four formerly-reserved binding names (`provider`, `apiKey`, `model`, `endpoint`) are no longer declared in `.mcl` files. They are infrastructure, not reasoning.
 
 Mission authors declare these as standard `let` bindings using `env()`. The canonical form:
 
