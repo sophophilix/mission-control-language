@@ -151,6 +151,16 @@ The following constructs are explicitly excluded:
 
 Nothing is added to the language unless it clearly improves reasoning composition.
 
+## One mission per file
+
+Every `.mcl` file encodes exactly one thinking model. This is not an observed pattern — it is a design constraint.
+
+A `.mcl` file is to a mission what an `expert.md` file is to an expert: one file, one unit. Allowing multiple missions per file would pull MCL toward being a module system, which is outside the language's scope.
+
+This constraint makes the agent mapping trivial: one `.mcl` → one mission → one agent → one endpoint. No disambiguation is needed.
+
+Note: a file may contain multiple `expert` declarations alongside the single `mission` — that is expected and correct. Only the number of `mission` declarations is constrained to one.
+
 ## Recursive composition
 
 Experts can be composed from other experts, giving the language recursive decomposition:

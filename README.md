@@ -236,7 +236,7 @@ forge webui stop
 
 ## Writing a mission
 
-A mission file is self-contained. It declares where experts come from, binds input values, and describes the reasoning pattern.
+A mission file is self-contained and encodes exactly one mission. It declares where experts come from, binds input values, and describes the reasoning pattern. (A file may include multiple `expert` declarations alongside the single `mission` — that is expected. Only the number of `mission` declarations is constrained to one.)
 
 ```fsharp
 // Provider
