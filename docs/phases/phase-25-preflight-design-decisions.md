@@ -212,6 +212,33 @@ _To be recorded._
 
 ---
 
+---
+
+## 8. Conditional steps — `when { }` primitive
+
+**Status: Open**
+
+**Context:**
+The classifier-router pattern (see [`docs/design/interaction-modes.md`](../design/interaction-modes.md)) requires steps that execute conditionally based on a context bag value set by a prior step:
+
+```fsharp
+-> Architect when { mode = "design" }
+-> Developer when { mode = "task" }
+```
+
+This is a new language primitive not currently in the grammar. It is the minimal conditional needed to express routing — not general branching, just step-level guards on context values.
+
+**Questions to answer:**
+- Should `when { }` be added in Phase 25 Spoke 1 or as a separate phase?
+- Does it evaluate against exact string match only, or support richer expressions?
+- Who sets the routed value — the Classifier via structured `StepEnvelope` output, or a plain context bag key?
+- Should an unmatched `when { }` step silently skip or emit a trace log entry?
+
+**Decision:**
+_To be recorded._
+
+---
+
 ## Completion gate
 
 All decisions must be recorded above before Phase 25 Spoke 1 begins.
