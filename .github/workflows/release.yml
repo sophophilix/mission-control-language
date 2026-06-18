@@ -81,6 +81,7 @@ jobs:
         run: dotnet publish src/ForgeMission.Cli -c Release -r ${{ matrix.rid }} -o dist
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NUGET_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Ad-hoc sign the macOS binary so Gatekeeper doesn't immediately block it.
       # This is not a trusted Apple Developer ID signature — it won't pass
