@@ -129,6 +129,7 @@ mission. They cannot be overridden by `let` bindings or `--var`.
 | `{{attempt}}` | Runtime, at the start of each loop iteration | Current attempt number, 1-based. Always `1` for missions without `loop`. |
 | `{{max_loops}}` | Runtime, from the mission's `loop N` declaration | Declared loop cap. Always `1` for missions without `loop`. |
 | `{{ExpertName}}` | Runtime, after each parallel step | Output of a named expert inside a `parallel { }` block. E.g. `{{Summariser}}`, `{{FactChecker}}`. Not set for sequential steps. |
+| `{{feedback}}` | Runtime, at the start of each loop iteration from attempt 2 onward | The Judge's structured failure reason from the previous iteration. Empty string on attempt 1. Enables deterministic convergence — each expert in the chain knows what failed and why. |
 
 These are the only reserved variables. The set is intentionally minimal — everything else
 comes from `let` bindings or `--var`. A new reserved variable requires a language design

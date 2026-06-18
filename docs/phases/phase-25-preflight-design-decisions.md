@@ -239,6 +239,61 @@ _To be recorded._
 
 ---
 
+---
+
+## 9. Loop context — deterministic convergence vs random retry
+
+**Status: Open**
+
+**Context:**
+The current `loop N` implementation almost certainly resets context at the start of each iteration — each attempt runs with the same original input, with no memory of what failed or why. This makes looping random retry, not iterative improvement:
+
+```
+Attempt 1: E1(input) → E2 → E3 → Judge(fail: "too vague")
+Attempt 2: E1(input) → E2 → E3 → Judge(fail: "still too vague")  ← same input
+Attempt 3: E1(input) → E2 → E3 → Judge(pass?)                    ← luck
+```
+
+What is needed is accumulated history across iterations. The Judge's failure reason must be fed back into E1 on the next attempt so every expert in the chain knows what went wrong and can improve deliberately:
+
+```
+Attempt 1: E1(input) → E2 → E3 → Judge(fail: "too vague")
+                                          ↓
+Attempt 2: E1(input + "failed: too vague") → E2 → E3 → Judge
+                                          ↓
+Attempt 3: E1(input + attempt 1 + attempt 2 feedback) → E2 → E3 → Judge(pass)
+```
+
+This is the difference between a pipeline that retries and a pipeline that learns. Deterministic convergence requires feedback to flow backward across iteration boundaries.
+
+**Proposed solution:**
+Introduce `{{feedback}}` as a new reserved variable — the Judge's structured failure reason from the previous iteration, available to every expert at the start of the next attempt. Empty string on attempt 1.
+
+| Variable | Value |
+|----------|-------|
+| `{{feedback}}` | Judge's failure reason from the prior iteration. Empty on attempt 1. |
+
+Expert prompts can then explicitly act on it:
+
+```markdown
+Previous attempt failed because: {{feedback}}
+Avoid repeating that mistake.
+```
+
+The Judge's failure reason already exists in `StepEnvelope` — the runtime change is surfacing it as `{{feedback}}` at the top of the next iteration rather than discarding it.
+
+**Questions to answer:**
+- Is `{{feedback}}` the right name, or is `{{prior_failure}}` / `{{judge_feedback}}` clearer?
+- Should `{{feedback}}` contain only the Judge's failure reason, or the full output of the last failed iteration?
+- Should accumulated history across all attempts be available, or only the most recent failure?
+- Does this require a `StepEnvelope` schema change or is the failure reason already structured enough to surface directly?
+- Is this a Phase 25 runtime change or a separate phase?
+
+**Decision:**
+_To be recorded._
+
+---
+
 ## Completion gate
 
 All decisions must be recorded above before Phase 25 Spoke 1 begins.
