@@ -1,6 +1,7 @@
 using System.CommandLine;
 using ForgeMission.Core.Adapters;
 using ForgeMission.Core.Experts;
+using ForgeMission.Core.Manifest;
 using ForgeMission.Parser;
 using ForgeMission.Core.Resolution;
 using ForgeMission.Core.Runtime;
@@ -54,7 +55,10 @@ static Command BuildInitCommand()
 
         Console.WriteLine("Resolving experts...\n");
 
-        // OCI expert declarations have moved to forge.toml — Spoke 2 will re-implement OCI pulling.
+        ForgeManifest? manifest = null;
+        try { manifest = ForgeTomlReader.TryRead(mission.FullName); }
+        catch (ForgeTomlException ex) { Die(ex.Message); return; }
+
         var lockFile = new LockFile();
 
         // --- Local experts: discover from ./experts
@@ -71,6 +75,15 @@ static Command BuildInitCommand()
             if (lockFile.Experts.ContainsKey(name)) continue; // OCI takes precedence if same name
             var relativePath = Path.GetRelativePath(missionDir, expert.ExpertMdPath);
             lockFile.Experts[name] = new LockFileExpert { Source = expert.Source, Path = relativePath };
+        }
+
+        // Report OCI experts declared in forge.toml (pulling is not yet implemented)
+        if (manifest?.Experts.Count > 0)
+        {
+            Console.WriteLine($"  ! OCI experts declared in forge.toml (pulling not yet implemented):");
+            foreach (var (name, oci) in manifest.Experts.OrderBy(k => k.Key))
+                Console.WriteLine($"    {name,-30} {oci}");
+            Console.WriteLine();
         }
 
         var totalCount = lockFile.Experts.Count;
@@ -130,7 +143,9 @@ static Command BuildRunCommand()
         var ast = TryParse(source);
         if (ast is null) return;
 
-        // OCI expert validation moved to forge.toml (Spoke 2).
+        ForgeManifest? manifest = null;
+        try { manifest = ForgeTomlReader.TryRead(mission.FullName); }
+        catch (ForgeTomlException ex) { Die(ex.Message); return; }
 
         LockFile lockFile;
         try { lockFile = LockFileIO.Read(lockPath); }
@@ -146,25 +161,30 @@ static Command BuildRunCommand()
         try { seedContext = ContextBuilder.Seed(ast, parsedVars); }
         catch (InvalidOperationException ex) { Die(ex.Message); return; }
 
-        if (!seedContext.TryGetValue("apiKey", out var apiKeyObj) || string.IsNullOrWhiteSpace(apiKeyObj?.ToString()))
+        // Resolve provider config: let bindings first, forge.toml [providers.default] as fallback
+        var defaultProfile = manifest?.Providers.GetValueOrDefault("default");
+
+        var apiKeyStr  = GetContextString(seedContext, "apiKey")  ?? defaultProfile?.ApiKey;
+        var modelStr   = GetContextString(seedContext, "model")   ?? defaultProfile?.Model;
+        var providerStr = GetContextString(seedContext, "provider") ?? defaultProfile?.Provider ?? "openai";
+        var endpointStr = GetContextString(seedContext, "endpoint") ?? defaultProfile?.Endpoint ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(apiKeyStr))
         {
-            Die("Mission must declare an API key: let apiKey = env(\"MCL_API_KEY\")");
+            Die("No API key found. Set 'let apiKey = env(\"MCL_API_KEY\")' in the mission or add [providers.default] to forge.toml.");
             return;
         }
-        if (!seedContext.TryGetValue("model", out var modelObj) || string.IsNullOrWhiteSpace(modelObj?.ToString()))
+        if (string.IsNullOrWhiteSpace(modelStr))
         {
-            Die("Mission must declare a model: let model = env(\"MCL_MODEL\", \"gpt-4o-mini\")");
+            Die("No model found. Set 'let model = env(\"MCL_MODEL\", \"gpt-4o-mini\")' in the mission or add [providers.default] to forge.toml.");
             return;
         }
 
-        var provider = seedContext.TryGetValue("provider", out var providerObj)
-            ? providerObj.ToString()!
-            : "openai";
-        var endpoint = seedContext.TryGetValue("endpoint", out var endpointObj)
-            ? endpointObj.ToString()!
-            : string.Empty;
+        var apiKeyObj   = (object)apiKeyStr;
+        var provider    = providerStr;
+        var endpoint    = endpointStr;
 
-        var runner = TryBuildRunner(provider, apiKeyObj.ToString()!, modelObj.ToString()!, endpoint);
+        var runner = TryBuildRunner(provider, apiKeyStr, modelStr, endpoint);
         if (runner is null) return;
 
         var firstMission = ast.Declarations.OfType<MissionDeclaration>().FirstOrDefault();
@@ -222,6 +242,10 @@ static Command BuildValidateCommand()
 
         var ast = TryParse(source);
         if (ast is null) return;
+
+        // Validate forge.toml if present
+        try { ForgeTomlReader.TryRead(mission.FullName); }
+        catch (ForgeTomlException ex) { Die(ex.Message); return; }
 
         // Warn if lock file is absent or stale
         if (!File.Exists(lockPath))
@@ -544,6 +568,9 @@ static string ExpertTemplate(string name) => $"""
 
     Produce [output description].
     """;
+
+static string? GetContextString(Dictionary<string, object> ctx, string key)
+    => ctx.TryGetValue(key, out var v) && v is string s && s.Length > 0 ? s : null;
 
 static FileInfo ResolveMission(FileInfo? arg)
     => new FileInfo(Path.GetFullPath(arg?.FullName ?? "mission.mcl"));

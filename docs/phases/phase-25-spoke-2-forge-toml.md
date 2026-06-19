@@ -1,6 +1,6 @@
 # Phase 25 — Spoke 2: forge.toml
 
-## Status: Todo
+## Status: Done
 
 ## Overview
 
