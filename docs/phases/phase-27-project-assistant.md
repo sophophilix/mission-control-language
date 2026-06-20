@@ -85,6 +85,86 @@ Legend:
   [project-assistant]   composed mission as a step (dashed border in diagram)
 ```
 
+## MCL mockup
+
+Full syntax mock of all three missions as they will look once Mission Composition
+lands. Not runnable yet — mission-as-step requires the Mission Composition phase.
+
+### `missions/project-assistant/mission.mcl`
+
+```fsharp
+// Generic. Works for any project that uses hub/spoke docs.
+// Context injected via run.sh (or tool calls once Phase 22 lands).
+
+let plan   = env("MCL_PLAN_CONTENT")
+let phases = env("MCL_PHASES_CONTENT")
+
+mission ProjectAssistant(request, plan, phases) = {
+    RequestClassifier                              // outputs: status / next / handoff / document
+    -> StatusReporter    when(output: "status")
+    -> NextStepAdvisor   when(output: "next")
+    -> HandoffGenerator  when(output: "handoff")
+    -> DocUpdater        when(output: "document")
+    -> GeneralAdvisor    when(else)
+}
+
+output(ProjectAssistant)
+```
+
+### `missions/software-project-assistant/mission.mcl`
+
+```fsharp
+// Extends project-assistant with architecture and development modes.
+// Domain-specific requests route to specialist sub-missions.
+// Everything project-management-related falls through to ProjectAssistant.
+
+let plan     = env("MCL_PLAN_CONTENT")
+let phases   = env("MCL_PHASES_CONTENT")
+let codebase = env("MCL_CODEBASE_CONTEXT")  // git log, recent diffs, etc.
+
+mission ArchitectMode(request, plan, codebase) loop(2) = {
+    SoftwareArchitect           // produces architecture guidance
+    -> ArchitectureReviewer     // critiques — gaps, risks, open questions
+    -> ArchitectureDocumenter   // writes ADR-style record
+    -> QualityJudge             // pass/fail — triggers retry if not production-ready
+}
+
+mission DevelopmentMode(request, plan, codebase) = {
+    SoftwareDeveloper   // implementation guidance + code
+    -> CodeReviewer     // critiques the plan
+    -> TestAdvisor      // test strategy and coverage approach
+}
+
+mission SoftwareProjectAssistant(request, plan, phases, codebase) = {
+    SoftwareRequestClassifier                                                   // outputs: architecture / development / project
+    -> ArchitectMode(request: request, plan: plan, codebase: codebase)         when(output: "architecture")
+    -> DevelopmentMode(request: request, plan: plan, codebase: codebase)       when(output: "development")
+    -> ProjectAssistant(request: request, plan: plan, phases: phases)          when(output: "project")
+}
+
+output(SoftwareProjectAssistant)
+```
+
+### `missions/product-owner-assistant/mission.mcl`
+
+```fsharp
+// Different role, same base — ProjectAssistant handles all project-management
+// requests unchanged. PO-specific experts only handle PO-specific modes.
+
+let plan    = env("MCL_PLAN_CONTENT")
+let phases  = env("MCL_PHASES_CONTENT")
+let backlog = env("MCL_BACKLOG_CONTENT")
+
+mission ProductOwnerAssistant(request, plan, phases, backlog) = {
+    ProductRequestClassifier                                                // outputs: story / backlog / project
+    -> UserStoryWriter(backlog: backlog)                                   when(output: "story")
+    -> BacklogPrioritizer(backlog: backlog)                                when(output: "backlog")
+    -> ProjectAssistant(request: request, plan: plan, phases: phases)     when(output: "project")
+}
+
+output(ProductOwnerAssistant)
+```
+
 ## Three missions
 
 ### Layer 1 — `missions/project-assistant/`
