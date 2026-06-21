@@ -1,0 +1,229 @@
+# Phase 22b — ONNX Expert Kind
+
+> **Status: Todo**  
+> **Depends on:** Phase 22a (kind dispatch, HttpExpertRunner) — Done  
+> **Blocks:** UC-3 (Log Anomaly Detection) demo mission  
+> **Context:** This is the second half of Phase 22. Phase 22a shipped `kind: http` and
+> the kind dispatch infrastructure. Phase 22b completes the non-LLM expert story by
+> adding `kind: onnx` for in-process ML model inference.
+
+---
+
+## Why this matters — the use cases
+
+Three customer use cases motivate non-LLM expert stages. All three were recorded before
+this phase was planned, and all three require ML model inference at some step in the pipeline:
+
+**UC-1: Image Analysis Pipeline** — FaceRecogniser, TextExtractor, ObjectClassifier are
+classical ML/vision models. They could be `kind: http` (calling an external vision API)
+but the canonical form has them as embedded ONNX models running in-process.
+
+**UC-2: Trading Signal Aggregator** — MarketContext, StockContext, SectorContext could
+be LLM experts (GPT reading market narrative), but the production use case has scoring
+models running against numeric feature vectors. ONNX handles that.
+
+**UC-3: Log Anomaly Detection** — AnomalyDetector is explicitly an ONNX isolation-forest
+model in the design spec. It reads named float features (`cpu_usage`, `memory_usage`,
+`request_latency`) from the context bag and emits an anomaly score. This is the hardest
+dependency — `kind: http` could stand in if the model is deployed as a microservice, but
+the intent is always in-process.
+
+---
+
+## Design
+
+### Expert frontmatter
+
+New fields added to `ExpertFrontmatter` and `ExpertDefinition`:
+
+```markdown
+---
+name: AnomalyDetector
+input: Normalised metric features
+output: Anomaly score and pass/fail decision
+kind: onnx
+model: ./models/isolation-forest.onnx
+inputs: cpu_usage, memory_usage, request_latency
+outputKey: anomaly_score
+threshold: 0.85
+---
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `model` | Yes (kind:onnx) | Path to the `.onnx` file, relative to the expert's directory |
+| `inputs` | Yes | Comma-separated list of context bag keys to read as float features |
+| `outputKey` | Yes | Context bag key to write the inference score into |
+| `threshold` | Yes | Score above this → `status: fail`. At or below → `status: pass` |
+
+Validation in `ExpertLoader.ParseFile`: if `kind == "onnx"`, require `model`, `inputs`,
+`outputKey`, `threshold`. Throw `ExpertLoadException` with a clear message if any are missing.
+
+### Context bag typing
+
+Currently `Dictionary<string, object>` holds string values exclusively. ONNX features are
+floats. The change: allow `double` to be stored alongside strings. No breaking change:
+
+- LLM prompt interpolation (`{{key}}`) calls `.ToString()` — doubles format correctly
+- `kind: rule` evaluators already work on the string `.ToString()` of the output
+- ONNX runner reads `double` directly; throws `RuleEvaluationException` (or a new
+  `OnnxFeatureException`) if a key is missing or not numeric
+
+Decision: keep the bag as `Dictionary<string, object>`. Typed values are stored as `double`.
+A typed context bag (with schema) is under discussion but deferred — the loose bag is
+sufficient for these use cases.
+
+### OnnxExpertRunner
+
+```csharp
+public class OnnxExpertRunner : IExpertRunner
+{
+    public Task<StepEnvelope> RunAsync(
+        ExpertDefinition expert,
+        Dictionary<string, object> context,
+        CancellationToken ct = default)
+    {
+        // 1. Load InferenceSession from expert.Model path
+        // 2. Extract float features from context by expert.Inputs keys
+        // 3. Run inference → score (float/double)
+        // 4. Write score to context[expert.OutputKey]
+        // 5. Compare score to expert.Threshold
+        // 6. Return StepEnvelope(score.ToString(), score > threshold ? "fail" : "pass")
+    }
+}
+```
+
+`InferenceSession` is created per-call (or cached — TBD based on AOT constraints).
+For the initial implementation: create per-call, measure perf, cache if needed.
+
+### Kind dispatch
+
+Add `"onnx"` to the switch in both `ExecuteStepAsync` and `ExecuteParallelStepAsync`
+in `PipelineRunner.cs`:
+
+```csharp
+var runner = expert.Kind switch
+{
+    "http" => (IExpertRunner)new HttpExpertRunner(),
+    "rule" => new RuleExpertRunner(),
+    "onnx" => new OnnxExpertRunner(),
+    _      => ResolveRunner(step.Using)
+};
+```
+
+---
+
+## AOT considerations — critical gate
+
+This is the primary risk of the phase. OnnxRuntime 1.27.0 was inspected:
+
+- Ships native libraries for all three target platforms: `osx-arm64`, `linux-x64`, `win-arm64` ✓
+- Managed bindings (`Microsoft.ML.OnnxRuntime.Managed`) are P/Invoke-based — not reflection-heavy
+- No `System.Reflection.Emit` in the managed API surface
+- IL3050 suppression is already configured in `Cli.csproj`
+
+**Unresolved: single binary constraint.**
+
+The current `forge` binary is self-contained. OnnxRuntime's native library
+(`libonnxruntime.dylib`, `libonnxruntime.so`, `onnxruntime.dll`) cannot be statically
+linked — it must deploy alongside the binary. This breaks the single-binary model.
+
+Three options — decision needed before Spoke 3:
+
+| Option | Trade-off |
+|--------|-----------|
+| A — Deploy alongside | `forge` binary + `libonnxruntime` in same dir. Zip in release. Simplest. |
+| B — Optional / plugin | ONNX only available if `libonnxruntime` is present at runtime; graceful error otherwise |
+| C — Separate `forge-onnx` binary | AOT-published variant that includes OnnxRuntime. Two release artifacts per platform. |
+
+**Recommended: Option A** — ship as a zip archive per platform for ONNX-enabled releases.
+The non-ONNX binary remains a single file for users who don't need it.
+
+**AOT probe is Spoke 1** — must complete before any other spoke is scheduled.
+
+---
+
+## Package placement
+
+`Microsoft.ML.OnnxRuntime` referenced in `ForgeMission.Core.csproj` (so Core owns the
+runner, consistent with `HttpExpertRunner` and `RuleExpertRunner`). The native library
+lands in the publish output automatically via the package's `runtimes/` folder.
+
+---
+
+## Hub + Spokes
+
+### Spoke 1 — AOT Compatibility Probe (gate)
+
+Add `Microsoft.ML.OnnxRuntime` to `ForgeMission.Core.csproj`. Write a minimal
+`OnnxExpertRunner` stub that creates an `InferenceSession`. Run `make install`
+(native AOT publish). Document all ILC warnings. Add `[DynamicDependency]` or
+suppressions as needed. If probe fails badly, evaluate Option C above.
+
+**Output:** AOT probe findings documented in this file. Go/no-go decision recorded.
+Only proceed to Spoke 2+ if probe passes or has an acceptable mitigation.
+
+### Spoke 2 — Typed Context Bag
+
+Allow `double` values in `Dictionary<string, object>`. Update `ContextBuilder` to
+handle numeric coercion. Update `{{key}}` interpolation in `DirectExpertRunner` to
+call `.ToString()` on non-string values. No grammar change.
+
+**Tests:** context bag stores double, LLM interpolation formats correctly, missing
+key throws a clear error.
+
+### Spoke 3 — Expert Frontmatter Extension
+
+Add `model`, `inputs`, `outputKey`, `threshold` to `ExpertFrontmatter` (private POCO
+in `ExpertLoader`) and `ExpertDefinition` (public record). Add `[DynamicDependency]`
+preservation for the new POCO fields (YamlDotNet uses reflection).
+
+Validation in `ExpertLoader.ParseFile`:
+- `kind: onnx` + missing `model` → `ExpertLoadException`
+- `kind: onnx` + missing `inputs` → `ExpertLoadException`
+- `kind: onnx` + missing `outputKey` → `ExpertLoadException`
+- `kind: onnx` + missing `threshold` → `ExpertLoadException`
+
+**Tests:** 4 validation tests (one per missing field), 1 happy-path parse test.
+
+### Spoke 4 — OnnxExpertRunner
+
+Implement `OnnxExpertRunner : IExpertRunner`. Steps:
+1. Parse `expert.Inputs` (comma-separated) into `string[]` feature keys
+2. Read each key from `context` as `double` (throw if missing or not numeric)
+3. Build `OrtValue` tensor from feature array
+4. Create `InferenceSession` from `expert.Model` path
+5. Run `session.Run(inputs)` → extract output value as `double`
+6. Write to `context[expert.OutputKey]`
+7. Compare to `double.Parse(expert.Threshold)` → pass/fail
+
+Add `"onnx"` to `PipelineRunner` kind dispatch (both sequential and parallel).
+
+**Tests:** mock ONNX model (or a 1-input linear model generated in the test setup),
+verify score written to context, verify pass/fail threshold logic.
+
+### Spoke 5 — Single Binary Decision + Release Update
+
+Based on Spoke 1 findings, implement the chosen option (A/B/C). Update the GitHub
+Actions release workflow to bundle `libonnxruntime` alongside `forge` if Option A.
+Update README and `docs/design/language.md` to document `kind: onnx`.
+
+---
+
+## Dependencies
+
+- Phase 22a (kind dispatch, `ExpertDefinition.Kind`, `ExpertLoader` validation) — Done
+- Phase 21 (named outputs, `{{AnomalyDetector.output}}`) — Done
+- No grammar changes — `kind: onnx` is a frontmatter field like `kind: http`
+
+---
+
+## Open questions
+
+1. **Single binary constraint** — resolved by Spoke 1 probe findings (see above)
+2. **InferenceSession caching** — per-call creation is simple; cache by model path if
+   perf is a concern (deferred until measured)
+3. **Model path resolution** — relative to expert.md directory or to CWD? Recommend
+   relative to expert.md (consistent with OCI pull behaviour)
+4. **Float vs double** — ONNX tensors are float32. Context bag stores double. Cast at
+   the runner boundary; document the precision loss is expected.
