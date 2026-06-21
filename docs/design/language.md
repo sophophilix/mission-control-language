@@ -303,10 +303,17 @@ Injected by the runtime. Cannot be overridden.
 | `{{attempt}}` | Runtime, loop iteration start | Current attempt number, 1-based. Always `1` without `loop`. |
 | `{{max_loops}}` | Runtime, from `loop(N)` | Declared loop cap. Always `1` without `loop`. |
 | `{{ExpertName}}` | Runtime, after each parallel step | Named output from a `parallel {}` expert. E.g. `{{Summariser}}`. |
+| `{{feedback}}` | Runtime, on loop retry | Feedback message from the prior attempt's failing `role:judge` or `kind:rule` expert. Empty string on attempt 1. |
 
-`{{feedback}}` is **not** a developer-facing variable. Platform-managed feedback injection
-handles loop convergence automatically — structured critique is prepended to the first
-expert's context on each retry. Expert prompts do not need to reference `{{feedback}}`.
+Expert prompts **can** reference `{{feedback}}` to incorporate the prior failure message:
+
+```markdown
+Write a clear explanation of {{topic}}.
+
+{{feedback}}
+```
+
+When `{{feedback}}` is empty (first attempt) the placeholder resolves to an empty string and has no effect. On retry it contains the `onFail` message from the failing gate — the Drafter reads it and self-corrects. No conditional logic needed in the prompt.
 
 ### Domain vs infrastructure variables
 
@@ -353,6 +360,64 @@ declare failure and state which criterion was missed.
 ```
 
 Only one judge per pipeline is typical. Multiple judges are valid — any failing judge stops the pipeline.
+
+### `kind` field
+
+| Value | Behaviour |
+|-------|-----------|
+| `llm` *(default)* | Expert is an LLM call. System prompt is sent to the configured provider. |
+| `http` | Expert POSTs the context bag as JSON to `endpoint` and expects a `StepEnvelope` response. No system prompt sent. Requires `endpoint`. |
+| `rule` | Expert evaluates a deterministic `check` expression against the prior step's output. No LLM call. Requires `check`. |
+
+`kind: rule` pushes determinism left. Structural checks that do not need AI judgment — word count, JSON validity, heading presence — should not consume LLM tokens. The rule either passes or fails instantly.
+
+```markdown
+---
+name: WordCountGate
+input: text to validate
+output: validated text
+kind: rule
+check: word_count >= 50
+onFail: Your response is too short. Write at least 50 words — include a concrete example.
+---
+```
+
+**`check` expression syntax:**
+
+```
+check := clause ('and' clause)*
+clause := evaluator op number       # numeric comparison
+        | evaluator "string"        # string argument
+        | evaluator                 # nullary
+
+evaluator  := word_count | char_count | line_count | sentence_count
+            | contains | starts_with | ends_with | no_match | contains_pattern
+            | json_parseable | xml_parseable | markdown_has_heading
+
+op         := '<' | '>' | '<=' | '>=' | '==' | '!='
+```
+
+Examples:
+
+```
+check: word_count >= 50
+check: json_parseable
+check: word_count > 100 and contains_pattern "\d+"
+check: markdown_has_heading and word_count > 200
+```
+
+**`onFail`** is the feedback message written to `context["feedback"]` when the check fails. It is injected into the next loop iteration so the Drafter can reference `{{feedback}}` in its prompt and self-correct. If omitted, the runtime uses `"Rule check failed."`.
+
+**Integration with `loop(N)`:**
+
+```fsharp
+mission DraftWithLengthGate(topic) loop(3) = {
+    Drafter        // LLM — can reference {{feedback}} for prior failure message
+    -> WordCountGate  // kind:rule — passes instantly or writes onFail to {{feedback}}
+}
+```
+
+On the first attempt `{{feedback}}` is empty. On retry it contains the `onFail` message. No developer plumbing required — the runtime carries it automatically.
 
 ## Standard library
 
