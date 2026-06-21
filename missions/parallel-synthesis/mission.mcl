@@ -5,8 +5,8 @@
 //   then a Synthesiser consolidates their perspectives into a
 //   single coherent recommendation.
 //
-// In Phase 25 the parallel block runs sequentially under the hood.
-// Phase 21 will add actual concurrent execution.
+// All three experts run concurrently (Task.WhenAll). Synthesiser receives
+// {{BusinessAnalyst.output}}, {{TechnicalReviewer.output}}, {{RiskAnalyst.output}}.
 
 let proposal = "We should rewrite our monolithic Rails application as microservices over the next 18 months."
 
