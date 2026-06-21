@@ -114,8 +114,10 @@ public class ExpertLoader(string expertsDirectory)
             throw new ExpertLoadException($"Missing required frontmatter field 'input' in {Path.GetFileName(path)}");
         if (string.IsNullOrWhiteSpace(meta.Output))
             throw new ExpertLoadException($"Missing required frontmatter field 'output' in {Path.GetFileName(path)}");
+        if (meta.Kind.Equals("http", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(meta.Endpoint))
+            throw new ExpertLoadException($"Expert '{meta.Name}' has kind:http but is missing required field 'endpoint'.");
 
-        return new ExpertDefinition(meta.Name, meta.Input, meta.Output, body.Trim(), meta.Role);
+        return new ExpertDefinition(meta.Name, meta.Input, meta.Output, body.Trim(), meta.Role, meta.Kind, meta.Endpoint);
     }
 
     private static (string Frontmatter, string Body) SplitFrontmatter(string path, string content)
@@ -142,9 +144,11 @@ public class ExpertLoader(string expertsDirectory)
 
     private class ExpertFrontmatter
     {
-        public string Name   { get; set; } = "";
-        public string Input  { get; set; } = "";
-        public string Output { get; set; } = "";
-        public string Role   { get; set; } = "";
+        public string Name     { get; set; } = "";
+        public string Input    { get; set; } = "";
+        public string Output   { get; set; } = "";
+        public string Role     { get; set; } = "";
+        public string Kind     { get; set; } = "llm";
+        public string Endpoint { get; set; } = "";
     }
 }

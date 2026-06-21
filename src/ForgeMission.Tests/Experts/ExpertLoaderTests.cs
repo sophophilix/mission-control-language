@@ -228,6 +228,66 @@ public class ExpertLoaderTests : IDisposable
     }
 
     // ---------------------------------------------------------------------------
+    // Kind field
+
+    [Fact]
+    public void ParseFile_NoKindField_DefaultsToLlm()
+    {
+        WriteDirExpert("KubernetesArchitect", ValidExpertMarkdown());
+        var expert = new ExpertLoader(_dir).LoadAll()["KubernetesArchitect"];
+        Assert.Equal("llm", expert.Kind);
+        Assert.False(expert.IsHttp);
+    }
+
+    [Fact]
+    public void ParseFile_KindHttp_IsHttpTrue()
+    {
+        WriteDirExpert("Scorer", """
+            ---
+            name: Scorer
+            input: features
+            output: score
+            kind: http
+            endpoint: http://localhost:5000/score
+            ---
+            """);
+        var expert = new ExpertLoader(_dir).LoadAll()["Scorer"];
+        Assert.Equal("http", expert.Kind);
+        Assert.True(expert.IsHttp);
+    }
+
+    [Fact]
+    public void ParseFile_KindHttp_ReadsEndpoint()
+    {
+        WriteDirExpert("Scorer", """
+            ---
+            name: Scorer
+            input: features
+            output: score
+            kind: http
+            endpoint: http://localhost:5000/score
+            ---
+            """);
+        var expert = new ExpertLoader(_dir).LoadAll()["Scorer"];
+        Assert.Equal("http://localhost:5000/score", expert.Endpoint);
+    }
+
+    [Fact]
+    public void ParseFile_KindHttp_MissingEndpoint_Throws()
+    {
+        WriteDirExpert("Scorer", """
+            ---
+            name: Scorer
+            input: features
+            output: score
+            kind: http
+            ---
+            """);
+        var ex = Assert.Throws<ExpertLoadException>(() => new ExpertLoader(_dir).LoadAll());
+        Assert.Contains("endpoint", ex.Message);
+    }
+
+    // ---------------------------------------------------------------------------
     // Lock file loading
 
     [Fact]

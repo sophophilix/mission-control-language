@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using ForgeMission.Core.Adapters;
 using ForgeMission.Core.Experts;
 using ForgeMission.Parser;
 
@@ -164,7 +165,11 @@ public class PipelineRunner
         foreach (var binding in step.Context)
             context[binding.Key] = ContextBuilder.ResolveBindingValue(binding.Value, context);
 
-        var runner = ResolveRunner(step.Using);
+        var runner = expert.Kind switch
+        {
+            "http" => (IExpertRunner)new HttpExpertRunner(),
+            _      => ResolveRunner(step.Using)
+        };
 
         if (options.StepWriter is { } sw)
             await sw.WriteLineAsync($"→ {step.ExpertName}...");
@@ -214,7 +219,11 @@ public class PipelineRunner
         foreach (var binding in step.Context)
             localContext[binding.Key] = ContextBuilder.ResolveBindingValue(binding.Value, localContext);
 
-        var runner = ResolveRunner(step.Using);
+        var runner = expert.Kind switch
+        {
+            "http" => (IExpertRunner)new HttpExpertRunner(),
+            _      => ResolveRunner(step.Using)
+        };
         var namedKey = $"{step.ExpertName}.output";
 
         var envelope = await runner.RunAsync(expert, localContext, cts.Token);
