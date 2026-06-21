@@ -1,6 +1,6 @@
 # Phase 26 — Spoke 2: TextMate Grammar
 
-## Status: Todo
+## Status: Done
 
 ## What it delivers
 
@@ -24,9 +24,10 @@ Derived directly from the ANTLR grammar:
 
 ## Deliverables
 
-- `syntaxes/mcl.tmLanguage.json` — TextMate grammar
-- `package.json` — VS Code extension manifest associating `.mcl` with the grammar
-- Published to VS Code Marketplace as `forge-mcl` extension
+- `editors/vscode/syntaxes/mcl.tmLanguage.json` — TextMate grammar
+- `editors/vscode/package.json` — VS Code extension manifest (`forge-mcl`, publisher `forgelang`)
+- `editors/vscode/language-configuration.json` — bracket matching, comment toggling, folding
+- Publication to VS Code Marketplace — deferred (requires registered publisher)
 
 ## Notes
 

@@ -607,4 +607,55 @@ public class PipelineRunnerTests
         Assert.Equal(["DataExtractor", "Summariser", "FactChecker", "Synthesiser"], names);
         Assert.Equal(MissionStatus.Pass, result.Status);
     }
+
+    [Fact]
+    public async Task ParallelBlock_NamedOutputsAvailableToDownstreamStep()
+    {
+        var ast = MclParser.Parse("""
+            mission Analysis(input) = {
+                parallel {
+                    Summariser
+                    FactChecker
+                }
+                -> Synthesiser
+            }
+            """);
+
+        var stub = new StubExpertRunner((name, _) => $"Output from {name}");
+        await new PipelineRunner(stub)
+            .RunAsync(ast, Experts("Summariser", "FactChecker", "Synthesiser"),
+                      new PipelineRunOptions("Analysis"));
+
+        // Synthesiser should see named outputs from both parallel steps.
+        var synthCtx = stub.Calls.First(c => c.ExpertName == "Synthesiser").Context;
+        Assert.Equal("Output from Summariser",  synthCtx["Summariser.output"].ToString());
+        Assert.Equal("Output from FactChecker", synthCtx["FactChecker.output"].ToString());
+    }
+
+    [Fact]
+    public async Task ParallelBlock_OneFails_PipelineFails()
+    {
+        var ast = MclParser.Parse("""
+            mission Analysis(input) = {
+                parallel {
+                    ExpertA
+                    ExpertB
+                }
+                -> Synthesiser
+            }
+            """);
+
+        var stub = new StubExpertRunner((name, _) => name == "ExpertB"
+            ? new StepEnvelope("bad output", "fail", "ExpertB rejected the input")
+            : new StepEnvelope($"Output from {name}"));
+
+        var result = await new PipelineRunner(stub)
+            .RunAsync(ast, Experts("ExpertA", "ExpertB", "Synthesiser"),
+                      new PipelineRunOptions("Analysis"));
+
+        Assert.Equal(MissionStatus.Fail, result.Status);
+        Assert.Contains("ExpertB", result.FailReason);
+        // Synthesiser must not run when a parallel step fails.
+        Assert.DoesNotContain(stub.Calls, c => c.ExpertName == "Synthesiser");
+    }
 }

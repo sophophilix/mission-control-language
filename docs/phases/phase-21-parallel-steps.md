@@ -1,8 +1,8 @@
 # Phase 21 — Parallel Steps + Named Outputs
 
-> **Syntax decision (superseded):** This phase originally proposed `[A, B, C]` bracket syntax.
-> That decision was revised in Phase 25 Spoke 1. The syntax is now `parallel { }` block — parallelism
-> declared on the container, not inferred from an operator. This doc will be updated when Phase 25 Spoke 1 is executed.
+> **Status: Done.** Grammar shipped in Phase 25 Spoke 1 (`parallel { }` block).
+> Runtime concurrent execution (Task.WhenAll) and named outputs (`{{ExpertName.output}}`)
+> shipped in Phase 21 (this phase). Streaming inside parallel groups is intentionally deferred.
 
 ## Goal
 
@@ -114,11 +114,10 @@ new key naming convention only.
 
 ## Tasks
 
-- [ ] Grammar: add `parallelGroup` rule — `LBRACKET UPPER_ID (COMMA UPPER_ID)* RBRACKET`
-- [ ] Regenerate ANTLR parser from updated grammar
-- [ ] AST: add `ParallelGroup` node alongside `Step` in `Pipeline`
-- [ ] PipelineRunner: detect `ParallelGroup`, run steps via `Task.WhenAll`
-- [ ] Context bag: write each step result into `{{Name.output}}` keyed slot
-- [ ] `{{output}}` backward compat: still set to last sequential step's output
-- [ ] Tests: parallel group parses, runs concurrently, named outputs accessible
-- [ ] Demo: trading signal mission showing `[MarketContext, StockContext, SectorContext]`
+- [x] Grammar: `parallel { }` block syntax — shipped in Phase 25 Spoke 1
+- [x] AST: `ParallelElement(IReadOnlyList<Step> Steps)` node in `ForgeMission.Parser/Ast.cs`
+- [x] PipelineRunner: `Task.WhenAll` concurrent execution, fail-fast via `CancellationTokenSource`
+- [x] Context bag: each step result written to `{{ExpertName.output}}`; `{{output}}` unchanged (last sequential step)
+- [x] Tests: `ParallelBlock_AllStepsExecute`, `ParallelBlock_NamedOutputsAvailableToDownstreamStep`, `ParallelBlock_OneFails_PipelineFails`
+
+Deferred: streaming inside parallel groups (channels); trading signal demo mission.

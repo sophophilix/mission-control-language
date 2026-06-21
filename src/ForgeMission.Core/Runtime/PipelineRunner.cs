@@ -71,13 +71,44 @@ public class PipelineRunner
 
                 if (element is ParallelElement parallel)
                 {
-                    // Phase 21 will make this concurrent (errgroup model).
-                    // For now, run sequentially so the grammar works end-to-end.
-                    foreach (var step in parallel.Steps)
+                    if (options.StepWriter is { } psw)
                     {
-                        failReason = await ExecuteStepAsync(step, experts, context, options, ct);
-                        if (failReason is not null) break;
+                        var pnames = string.Join(", ", parallel.Steps.Select(s => s.ExpertName));
+                        await psw.WriteLineAsync($"→ parallel {{ {pnames} }}");
                     }
+
+                    // Snapshot context so all parallel steps read the same base state.
+                    var snapshot = new Dictionary<string, object>(context, StringComparer.Ordinal);
+                    using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    var tasks = parallel.Steps
+                        .Select(step => ExecuteParallelStepAsync(step, experts, snapshot, linkedCts))
+                        .ToArray();
+
+                    try
+                    {
+                        var results = await Task.WhenAll(tasks);
+                        foreach (var (_, pkey, pout) in results)
+                            context[pkey] = pout;
+                        failReason = results.Select(r => r.failReason).FirstOrDefault(r => r is not null);
+                    }
+                    catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                    {
+                        // A step failed and cancelled siblings — collect completed results.
+                        foreach (var ptask in tasks.Where(t => t.IsCompletedSuccessfully))
+                        {
+                            var (_, pkey, pout) = ptask.Result;
+                            context[pkey] = pout;
+                        }
+                        failReason = tasks
+                            .Where(t => t.IsCompletedSuccessfully)
+                            .Select(t => t.Result.failReason)
+                            .FirstOrDefault(r => r is not null)
+                            ?? "a parallel step was cancelled";
+                    }
+
+                    if (options.StepWriter is { } psw2)
+                        await psw2.WriteLineAsync();
+
                     if (failReason is not null) break;
                     continue;
                 }
@@ -165,6 +196,36 @@ public class PipelineRunner
             return $"[{step.ExpertName}] {envelope.Reason ?? "step failed"}";
 
         return null;
+    }
+
+    private async Task<(string? failReason, string namedKey, string outputText)> ExecuteParallelStepAsync(
+        Step step,
+        Dictionary<string, ExpertDefinition> experts,
+        Dictionary<string, object> baseContext,
+        CancellationTokenSource cts)
+    {
+        if (!experts.TryGetValue(step.ExpertName, out var expert))
+            throw new InvalidOperationException(
+                $"Expert '{step.ExpertName}' not found. " +
+                "Run 'forge validate' to check your mission before running.");
+
+        // Each parallel step gets its own context copy so with-bindings don't interfere.
+        var localContext = new Dictionary<string, object>(baseContext, StringComparer.Ordinal);
+        foreach (var binding in step.Context)
+            localContext[binding.Key] = ContextBuilder.ResolveBindingValue(binding.Value, localContext);
+
+        var runner = ResolveRunner(step.Using);
+        var namedKey = $"{step.ExpertName}.output";
+
+        var envelope = await runner.RunAsync(expert, localContext, cts.Token);
+
+        if (envelope.Status == "fail")
+        {
+            cts.Cancel(); // Signal siblings to stop.
+            return ($"[{step.ExpertName}] {envelope.Reason ?? "step failed"}", namedKey, envelope.Text);
+        }
+
+        return (null, namedKey, envelope.Text);
     }
 
     private static StepEnvelope ParseStreamedEnvelope(string raw)

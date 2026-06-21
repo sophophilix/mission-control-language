@@ -1,7 +1,15 @@
+using Antlr4.Runtime;
+
 namespace ForgeMission.Parser;
 
 internal class MclAstBuilder : MclGrammarBaseVisitor<object?>
 {
+    private static SourceSpan SpanOf(ParserRuleContext ctx) => new(
+        ctx.Start.Line,
+        ctx.Start.Column,
+        ctx.Stop?.Line   ?? ctx.Start.Line,
+        (ctx.Stop?.Column ?? ctx.Start.Column) + (ctx.Stop?.Text.Length ?? ctx.Start.Text.Length));
+
     public override object? VisitProgram(MclGrammarParser.ProgramContext ctx)
     {
         var bindings = ctx.letBinding()
@@ -16,21 +24,21 @@ internal class MclAstBuilder : MclGrammarBaseVisitor<object?>
             .Select(o => (OutputDeclaration)Visit(o)!)
             .ToList();
 
-        return new Program(bindings, declarations, outputs);
+        return new Program(bindings, declarations, outputs, SpanOf(ctx));
     }
 
     public override object? VisitLetBinding(MclGrammarParser.LetBindingContext ctx)
     {
         var name  = ctx.LOWER_ID().GetText();
         var value = ParseLetValue(ctx.value());
-        return new LetBinding(name, value);
+        return new LetBinding(name, value, SpanOf(ctx));
     }
 
     public override object? VisitOutputDecl(MclGrammarParser.OutputDeclContext ctx)
     {
         var missionName = ctx.UPPER_ID().GetText();
         var filePath    = ctx.STRING() is { } s ? StripQuotes(s.GetText()) : null;
-        return new OutputDeclaration(missionName, filePath);
+        return new OutputDeclaration(missionName, filePath, SpanOf(ctx));
     }
 
     public override object? VisitDeclaration(MclGrammarParser.DeclarationContext ctx)
@@ -45,7 +53,7 @@ internal class MclAstBuilder : MclGrammarBaseVisitor<object?>
         var @params  = ParseParams(ctx.@params());
         var pipeline = (Pipeline)Visit(ctx.pipeline())!;
         var maxLoops = ctx.loopClause() is { } lc ? int.Parse(lc.INT().GetText()) : 1;
-        return new MissionDeclaration(name, @params, pipeline, maxLoops);
+        return new MissionDeclaration(name, @params, pipeline, maxLoops, SpanOf(ctx));
     }
 
     public override object? VisitPipeline(MclGrammarParser.PipelineContext ctx)
@@ -53,7 +61,7 @@ internal class MclAstBuilder : MclGrammarBaseVisitor<object?>
         var elements = ctx.pipelineElement()
             .Select(e => (PipelineElement)Visit(e)!)
             .ToList();
-        return new Pipeline(elements);
+        return new Pipeline(elements, SpanOf(ctx));
     }
 
     public override object? VisitPipelineElement(MclGrammarParser.PipelineElementContext ctx)
@@ -71,7 +79,7 @@ internal class MclAstBuilder : MclGrammarBaseVisitor<object?>
             : (IReadOnlyList<Binding>)[];
         var @using  = ctx.usingClause() is { } uc ? (string)Visit(uc)! : null;
         var when    = ctx.whenClause() is { } wc ? (WhenClause)Visit(wc)! : null;
-        return new Step(name, context, @using, when);
+        return new Step(name, context, @using, when, SpanOf(ctx));
     }
 
     public override object? VisitContextClause(MclGrammarParser.ContextClauseContext ctx)
@@ -99,7 +107,7 @@ internal class MclAstBuilder : MclGrammarBaseVisitor<object?>
     public override object? VisitParallelBlock(MclGrammarParser.ParallelBlockContext ctx)
     {
         var steps = ctx.step().Select(s => (Step)Visit(s)!).ToList();
-        return new ParallelElement(steps);
+        return new ParallelElement(steps, SpanOf(ctx));
     }
 
     public override object? VisitBinding(MclGrammarParser.BindingContext ctx)
