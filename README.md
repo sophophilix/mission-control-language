@@ -41,7 +41,7 @@ Produce a concrete architecture covering CRD design, controller structure, RBAC,
 and operational concerns.
 ```
 
-Local experts live at `./experts/<Name>/expert.md`. OCI-distributed experts — declared in `forge.toml` and cached under `~/.forge/experts/` — are coming in a future release.
+Local experts live at `./experts/<Name>/expert.md`. OCI-distributed experts are declared in `forge.toml` and pulled into `~/.forge/experts/` by `forge init`.
 
 An Expert answers: **Who performs this work?**
 
@@ -112,6 +112,30 @@ missions/build-operator/
 
 ---
 
+## forge.toml
+
+Provider configuration and OCI expert sources live in `forge.toml`, not in the mission file.
+
+```toml
+# Expert sources — OCI refs pulled by `forge init`
+[experts]
+KubernetesArchitect = "ghcr.io/katasec/forge-kubernetes-architect@0.1.0"
+
+# Default provider — used by all steps without `using`
+[providers.default]
+provider = "openai"
+model    = env("MCL_MODEL", "gpt-4o-mini")
+apiKey   = env("MCL_API_KEY")
+
+# Named profile — selected per step with `using architect`
+[providers.architect]
+provider = "anthropic"
+model    = "claude-opus-4-8"
+apiKey   = env("ANTHROPIC_API_KEY")
+```
+
+Supported providers: `openai`, `anthropic`, `azure`, `ollama`. Run `forge provider scaffold <name>` to generate a starter block for any of them.
+
 ## Language primitives
 
 | Primitive | What it expresses |
@@ -142,7 +166,7 @@ mission BuildOperatorDesign(goal, persona) = {
 output(BuildOperatorDesign)
 ```
 
-Local experts live at `./experts/<Name>/expert.md`. OCI-distributed experts and provider profiles are declared in `forge.toml` — coming in a future release.
+Local experts live at `./experts/<Name>/expert.md`. OCI-distributed experts and provider profiles are declared in `forge.toml`.
 
 See [`missions/build-operator/`](missions/build-operator/) for a working version of this mission.
 
@@ -250,14 +274,19 @@ mission BuildOperatorDesign(goal) = {
 
 ## Pass / fail
 
-Every step passes by default. A step signals failure by returning a structured fail status in its output. If any step fails, the pipeline stops immediately.
-
-Expert authors declare failure conditions in plain prose — the runtime handles the structured contract:
+Every step passes by default. Only experts declared as judges can stop the pipeline. Add `role: judge` to the expert's frontmatter to opt in:
 
 ```markdown
+---
+name: QualityJudge
+role: judge
+---
+
 You are the final judge. If the pitch is unclear, too long, or contains jargon —
 declare failure and state which criterion was missed.
 ```
+
+This is an explicit opt-in. Critics and reviewers that find issues always pass their output downstream — they never stop the pipeline. Only a judge can halt execution.
 
 ---
 
@@ -286,13 +315,16 @@ forge clean                                    // purge ~/.forge/experts cache
 forge login ghcr.io --token <pat>             // save registry credentials
 forge list experts                            // list local experts
 
+forge provider list                           // list supported providers
+forge provider scaffold <name>                // print a ready-to-paste forge.toml block
+
 forge agent start --agent-file <path>         // start agent container (Docker)
 forge agent stop  --agent-file <path>         // stop agent container
 forge webui start --agent-file <path>         // start Open WebUI connected to agent
 forge webui stop                              // stop Open WebUI
 ```
 
-`forge run` requires an `mcl.lock` — run `forge init` first.
+`forge run` reads `mission.mcl`, `forge.toml`, and `mcl.lock` from the current directory. Run `forge init` first to generate `mcl.lock`.
 
 ---
 
@@ -315,9 +347,10 @@ forge webui stop                              // stop Open WebUI
 Clone the repo and run one of the example missions:
 
 ```bash
-export MCL_API_KEY=sk-...
+export MCL_API_KEY=sk-...   # OpenAI key (default provider in all examples)
 
 cd missions/elevator-pitch
+forge init                  # resolve experts, write mcl.lock
 forge validate              # parse and validate
 forge run                   # single expert, single pass — simplest possible mission
 ```
@@ -326,7 +359,7 @@ For a fuller example — sequential composition with adversarial review:
 
 ```bash
 cd missions/elevator-pitch-refined
-forge run                   # drafter → critic → reviser → judge
+forge init && forge run     # drafter → critic → reviser → judge
 ```
 
 Or try the showcase missions:
@@ -335,10 +368,10 @@ Or try the showcase missions:
 cd missions/when-routing      # conditional routing via when()
 cd missions/parallel-synthesis # parallel experts + synthesiser
 cd missions/loop-demo          # quality-convergence loop with retry
-forge run                      # same command for all of them
+forge init && forge run        # same command for all of them
 ```
 
-`forge run` reads `mission.mcl` and `mcl.lock` from the current directory. Set `MCL_MODEL` and `MCL_PROVIDER` to override the defaults declared in the mission file.
+Provider and model are configured in each mission's `forge.toml`. To switch to Anthropic, swap the `[providers.default]` block — the commented alternative is already in each example file.
 
 ---
 

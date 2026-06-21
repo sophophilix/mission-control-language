@@ -45,41 +45,45 @@ The Resolver is the only component that turns an `ExpertRef` into an `ExpertDefi
 ```csharp
 record Program(IReadOnlyList<Declaration> Declarations);
 
-abstract record Declaration;
+abstract record Declaration(string Name);
 record MissionDeclaration(
     string Name,                        // "BuildOperatorDesign"
     IReadOnlyList<string> Params,       // ["goal", "persona"]
-    Pipeline Pipeline
+    Pipeline Pipeline,
+    int MaxLoops = 1                    // from loop(N) — 1 means no loop
 ) : Declaration;
 
 record Pipeline(IReadOnlyList<PipelineElement> Elements);
 
 abstract record PipelineElement;
-record Step(ExpertRef Expert, WithClause? With) : PipelineElement;
-record ParallelBlock(IReadOnlyList<Step> Steps) : PipelineElement;
+record StepElement(Step Step) : PipelineElement;
+record ParallelElement(IReadOnlyList<Step> Steps) : PipelineElement;
 
-record ExpertRef(string Name);
-record WithClause(IReadOnlyDictionary<string, string> Bindings);
+record Step(
+    string ExpertName,                            // "KubernetesArchitect"
+    IReadOnlyList<Binding> Context,               // (key: value) named parameters
+    string? Using,                                // using <profile> — provider profile selector
+    WhenClause? When);                            // when() guard — null means unconditional
 ```
 
 Example AST for:
 ```fsharp
-mission BuildOperatorDesign(goal, persona) =
-    KubernetesArchitect with { provider = "architect" }
+mission BuildOperatorDesign(goal, persona) = {
+    KubernetesArchitect using architect
     -> SecurityArchitect
     -> PrincipalReviewer
+}
 ```
 
 ```
-MissionDeclaration "BuildOperatorDesign" (goal, persona)
+MissionDeclaration "BuildOperatorDesign" (goal, persona) MaxLoops=1
   └── Pipeline
-        ├── Step
-        │     ├── ExpertRef "KubernetesArchitect"   ← unresolved name
-        │     └── WithClause { provider = "architect" }
-        ├── Step
-        │     └── ExpertRef "SecurityArchitect"
-        └── Step
-              └── ExpertRef "PrincipalReviewer"
+        ├── StepElement
+        │     └── Step "KubernetesArchitect"  Using="architect"
+        ├── StepElement
+        │     └── Step "SecurityArchitect"
+        └── StepElement
+              └── Step "PrincipalReviewer"
 ```
 
 ---
@@ -100,7 +104,7 @@ Lexer → TokenStream → Parser → AST
 
 ### 2. Resolver — `ForgeMission.Core/Experts/`
 
-Walks the AST and binds each `ExpertRef` to an `ExpertDefinition` by reading `expert.md` files. Resolution is eager — all names resolved before execution begins. Fails fast with a clear error if any name is missing.
+Walks the AST and binds each expert name to an `ExpertDefinition` by reading `expert.md` files. Resolution is eager — all names resolved before execution begins. Fails fast with a clear error if any name is missing.
 
 Resolution order per expert name:
 1. `<mission-dir>/experts/<Name>/expert.md` — local, always wins
@@ -108,8 +112,13 @@ Resolution order per expert name:
 3. Error — not found, tell user to run `forge init`
 
 ```csharp
-record ExpertDefinition(string Name, string SystemPrompt, string Input, string Output);
+record ExpertDefinition(string Name, string Input, string Output, string SystemPrompt, string Role = "")
+{
+    bool IsJudge => Role.Equals("judge", StringComparison.OrdinalIgnoreCase);
+}
 ```
+
+`Role` comes from the `role:` field in the expert's YAML frontmatter. Only experts with `role: judge` can stop the pipeline — all others always pass downstream.
 
 **Testable in isolation:** unit tests with fixture markdown files.
 
@@ -122,39 +131,82 @@ Orchestration loop. Walks the pipeline in order, calls `IExpertRunner` for each 
 ```csharp
 interface IExpertRunner
 {
-    Task<string> RunAsync(ExpertDefinition expert, string context, CancellationToken ct);
+    Task<StepEnvelope> RunAsync(ExpertDefinition expert, string context, CancellationToken ct);
+    IAsyncEnumerable<string> StreamAsync(ExpertDefinition expert, string context, CancellationToken ct);
 }
 ```
 
-Knows nothing about MAF. Depends only on `IExpertRunner`.
+`PipelineRunner` holds a `IReadOnlyDictionary<string, IExpertRunner>` keyed by profile name. At each step, `step.Using ?? "default"` resolves which runner to call. Unknown profile → immediate `InvalidOperationException` listing available profiles.
 
-**Testable in isolation:** unit tests with a stub `IExpertRunner` returning canned strings.
+```csharp
+class PipelineRunner
+{
+    PipelineRunner(IReadOnlyDictionary<string, IExpertRunner> runners);
+    PipelineRunner(IExpertRunner defaultRunner);   // backward-compat: wraps as "default"
+}
+```
+
+Depends only on `IExpertRunner`. No provider-specific types.
+
+**Testable in isolation:** unit tests with stub `IExpertRunner` implementations returning canned envelopes.
 
 ---
 
 ### 4. Direct IChatClient Adapter — `ForgeMission.Core/Adapters/DirectExpertRunner.cs`
 
-The single place provider interaction exists in the codebase. Implements `IExpertRunner`. Builds a `[System, User]` message list, calls `IChatClient.CompleteAsync()` (or `CompleteStreamingAsync()` for streaming), deserialises the JSON response into `StepEnvelope`.
+The single place provider interaction exists in the codebase. Implements `IExpertRunner`. Builds a `[System, User]` message list, calls `IChatClient.GetResponseAsync()` (or `GetStreamingResponseAsync()` for streaming), deserialises the JSON response into `StepEnvelope`.
 
-One file. Swappable without touching anything else. No MAF dependency.
+Post-processes the response based on expert role:
+- `role: judge` — response passes through unmodified; `status: fail` stops the pipeline.
+- All others — response is forced to `status: pass` regardless of content; critics and reviewers always pass their output downstream.
 
-**Testable:** integration test against a real LLM.
+One file. Swappable without touching anything else.
+
+**Testable:** unit tests with `StubChatClient`; integration test against a real LLM.
 
 ---
 
-### 5. CLI — `ForgeMission.Cli/`
+### 5. Provider Client Builder — `ForgeMission.Cli/ProviderClientBuilder.cs`
 
-Thin entry point. Parses arguments, wires up dependencies via DI, delegates to Core. No business logic.
+Builds an `IExpertRunner` from a `ProviderProfile` declared in `forge.toml`. Lives in the CLI project (not Core) because it depends on provider-specific packages.
+
+```csharp
+static class ProviderClientBuilder
+{
+    IExpertRunner Build(ProviderProfile profile);
+    IChatClient   BuildChatClient(ProviderProfile profile);
+}
+```
+
+Supported providers:
+
+| Value | Client | Notes |
+|-------|--------|-------|
+| `openai` | `OpenAIClient` | Default endpoint or custom via `endpoint` |
+| `azure` | `OpenAIClient` | Same path as openai; `endpoint` required |
+| `ollama` | `OpenAIClient` | Pointed at local Ollama endpoint (OpenAI-compatible) |
+| `anthropic` | `AnthropicClient` | Official Anthropic SDK via `AsIChatClient()` |
+
+---
+
+### 6. CLI — `ForgeMission.Cli/`
+
+Thin entry point. Reads `forge.toml` (via `ForgeTomlReader`), builds the runner dictionary (via `ProviderClientBuilder`), wires up `PipelineRunner`, and delegates to Core. No business logic.
 
 **Commands:**
 
 | Command | Description |
 |---------|-------------|
-| `forge init [mission.mcl]` | Resolve expert sources and generate mcl.lock |
-| `forge run [mission.mcl]` | Run a mission (self-contained — no input file required) |
-| `forge validate [mission.mcl]` | Validate all experts exist and pipeline is well-formed |
+| `forge init` | Resolve expert sources from `forge.toml`, populate `~/.forge/experts/`, write `mcl.lock` |
+| `forge run` | Run the mission in the current directory |
+| `forge validate` | Parse and validate — all experts exist and pipeline is well-formed |
 | `forge list experts` | List available experts |
 | `forge expert init <Name>` | Scaffold a new expert directory |
+| `forge provider list` | List known providers with required fields |
+| `forge provider scaffold <name>` | Print a ready-to-paste `forge.toml` provider block |
+| `forge serve` | Expose the mission as an OpenAI-compatible endpoint |
+| `forge agent start/stop` | Start/stop the agent container (Docker) |
+| `forge webui start/stop` | Start/stop Open WebUI connected to the agent |
 
 ---
 
@@ -162,23 +214,27 @@ Thin entry point. Parses arguments, wires up dependencies via DI, delegates to C
 
 ```
 CLI
+ ├→ ForgeTomlReader            (reads forge.toml — providers + expert sources)
+ ├→ ProviderClientBuilder      (builds IExpertRunner per profile)
  └→ Pipeline Runner
-      └→ Parser           (produces AST)
-      └→ Expert Loader    (resolves markdown)
-      └→ IExpertRunner
-           └→ Direct IChatClient Adapter (hidden — only impl of IExpertRunner)
+      ├→ Parser                (produces AST)
+      ├→ Expert Loader         (resolves markdown → ExpertDefinition)
+      └→ IExpertRunner  ×N    (one per forge.toml [providers.*] profile)
+           └→ DirectExpertRunner → IChatClient → LLM
 ```
 
-Strictly one direction. Nothing flows upward.
+Strictly one direction. Nothing flows upward. Provider-specific packages (OpenAI, Anthropic) live exclusively in the CLI layer — Core knows only `IChatClient`.
 
 ## Project references
 
 ```
 ForgeMission.Cli
-  └→ ForgeMission.Core
+  ├→ ForgeMission.Core
+  ├→ Microsoft.Extensions.AI.OpenAI   (OpenAI + Ollama + Azure)
+  └→ Anthropic                        (Claude models via AsIChatClient())
 
 ForgeMission.Core
-  └→ Microsoft.Extensions.AI   (IChatClient abstraction — adapter only)
+  └→ Microsoft.Extensions.AI          (IChatClient abstraction only)
 ```
 
 ## Output structure

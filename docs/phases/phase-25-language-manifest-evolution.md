@@ -1,6 +1,6 @@
 # Phase 25 — Language & Manifest Evolution
 
-## Status: Spokes 1–3 Done, Spokes 4–6 Todo
+## Status: Done
 
 ## Motivation
 
@@ -30,7 +30,7 @@ missions/build-operator/
 | [Spoke 3 — Expert Resolution](phase-25-spoke-3-expert-resolution.md) | Local-first, global cache fallback, SHA256 hash verification, `--verbose` flag | Done |
 | [Spoke 4 — forge init](phase-25-spoke-4-forge-init.md) | Read experts from `forge.toml`, populate `~/.forge/experts/`, write `mcl.lock` | Done |
 | [Spoke 5 — Provider Profiles](phase-25-spoke-5-provider-profiles.md) | Named profiles, per-step `with { provider = "name" }` resolution | Done |
-| [Spoke 6 — Docs](phase-25-spoke-6-docs.md) | Update language.md, README.md, architecture.md | Todo |
+| [Spoke 6 — Docs](phase-25-spoke-6-docs.md) | Update language.md, README.md, architecture.md | Done |
 
 ## Execution order
 

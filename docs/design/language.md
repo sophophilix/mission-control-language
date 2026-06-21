@@ -318,6 +318,42 @@ expert's context on each retry. Expert prompts do not need to reference `{{feedb
 infrastructure. `mission.mcl` is a pure reasoning artifact — readable without knowing
 anything about the infrastructure running it.
 
+## Expert frontmatter
+
+Every expert is a markdown file with a YAML frontmatter header followed by the system prompt.
+
+```markdown
+---
+name: KubernetesArchitect
+input: Task description
+output: Kubernetes architecture design
+role: judge          # optional — omit for critics, reviewers, drafters
+---
+
+You are a senior Kubernetes architect. ...
+```
+
+### `role` field
+
+| Value | Behaviour |
+|-------|-----------|
+| *(omitted)* | Default. Expert always passes its output downstream — it cannot stop the pipeline. Suitable for drafters, critics, revisers, reviewers. |
+| `judge` | Expert may return `status: fail` to stop the pipeline. Used as the final gate in a `loop(N)` — the loop retries only when the judge fails. |
+
+Fail semantics are **opt-in**. An expert without `role: judge` always passes, even if it describes problems. This prevents critics and reviewers from accidentally stopping the pipeline — a critic that finds issues should always forward its critique downstream, not halt execution.
+
+```markdown
+---
+name: QualityJudge
+role: judge
+---
+
+You are the final quality gate. If the output does not meet the standard —
+declare failure and state which criterion was missed.
+```
+
+Only one judge per pipeline is typical. Multiple judges are valid — any failing judge stops the pipeline.
+
 ## Standard library
 
 A small set of structural experts ship embedded in the `forge` binary. They require no
