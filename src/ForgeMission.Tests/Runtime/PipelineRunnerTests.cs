@@ -504,6 +504,84 @@ public class PipelineRunnerTests
                           new PipelineRunOptions("HandleRequest")));
     }
 
+    // ── provider profiles (using <profile>) ───────────────────────────────────
+
+    [Fact]
+    public async Task UsingClause_RoutesStepToNamedRunner()
+    {
+        var ast = MclParser.Parse("""
+            mission M = {
+                Drafter using architect
+                -> Reviewer
+            }
+            """);
+
+        var defaultStub  = new StubExpertRunner((_, _) => "default output");
+        var architectStub = new StubExpertRunner((_, _) => "architect output");
+
+        var runners = new Dictionary<string, IExpertRunner>(StringComparer.Ordinal)
+        {
+            ["default"]   = defaultStub,
+            ["architect"] = architectStub,
+        };
+
+        await new PipelineRunner(runners)
+            .RunAsync(ast, Experts("Drafter", "Reviewer"), new PipelineRunOptions("M"));
+
+        Assert.Single(architectStub.Calls);
+        Assert.Equal("Drafter", architectStub.Calls[0].ExpertName);
+        Assert.Single(defaultStub.Calls);
+        Assert.Equal("Reviewer", defaultStub.Calls[0].ExpertName);
+    }
+
+    [Fact]
+    public async Task NoUsingClause_UsesDefaultRunner()
+    {
+        var ast = MclParser.Parse("mission M = { KubernetesArchitect }");
+
+        var defaultStub  = new StubExpertRunner();
+        var architectStub = new StubExpertRunner();
+
+        var runners = new Dictionary<string, IExpertRunner>(StringComparer.Ordinal)
+        {
+            ["default"]   = defaultStub,
+            ["architect"] = architectStub,
+        };
+
+        await new PipelineRunner(runners)
+            .RunAsync(ast, Experts("KubernetesArchitect"), new PipelineRunOptions("M"));
+
+        Assert.Single(defaultStub.Calls);
+        Assert.Empty(architectStub.Calls);
+    }
+
+    [Fact]
+    public async Task UsingClause_UnknownProfile_Throws()
+    {
+        var ast = MclParser.Parse("mission M = { Drafter using ghost }");
+
+        var runner = new PipelineRunner(new Dictionary<string, IExpertRunner>(StringComparer.Ordinal)
+        {
+            ["default"] = new StubExpertRunner()
+        });
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => runner.RunAsync(ast, Experts("Drafter"), new PipelineRunOptions("M")));
+    }
+
+    [Fact]
+    public async Task SingleRunnerConstructor_WrapsAsDefault()
+    {
+        var ast  = MclParser.Parse("mission M = { KubernetesArchitect }");
+        var stub = new StubExpertRunner();
+
+        // Convenience constructor — backward compat
+        await new PipelineRunner(stub)
+            .RunAsync(ast, Experts("KubernetesArchitect"), new PipelineRunOptions("M"));
+
+        Assert.Single(stub.Calls);
+    }
+
     // ── parallel {} ───────────────────────────────────────────────────────────
 
     [Fact]

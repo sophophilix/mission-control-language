@@ -26,6 +26,7 @@ rootCommand.Add(BuildCleanCommand());
 rootCommand.Add(BuildServeCommand());
 rootCommand.Add(BuildAgentCommand());
 rootCommand.Add(BuildWebuiCommand());
+rootCommand.Add(BuildProviderCommand());
 
 return await rootCommand.Parse(args).InvokeAsync();
 
@@ -171,31 +172,9 @@ static Command BuildRunCommand()
         try { seedContext = ContextBuilder.Seed(ast, parsedVars); }
         catch (InvalidOperationException ex) { Die(ex.Message); return; }
 
-        // Resolve provider config: let bindings first, forge.toml [providers.default] as fallback
-        var defaultProfile = manifest?.Providers.GetValueOrDefault("default");
-
-        var apiKeyStr  = GetContextString(seedContext, "apiKey")  ?? defaultProfile?.ApiKey;
-        var modelStr   = GetContextString(seedContext, "model")   ?? defaultProfile?.Model;
-        var providerStr = GetContextString(seedContext, "provider") ?? defaultProfile?.Provider ?? "openai";
-        var endpointStr = GetContextString(seedContext, "endpoint") ?? defaultProfile?.Endpoint ?? string.Empty;
-
-        if (string.IsNullOrWhiteSpace(apiKeyStr))
-        {
-            Die("No API key found. Set 'let apiKey = env(\"MCL_API_KEY\")' in the mission or add [providers.default] to forge.toml.");
-            return;
-        }
-        if (string.IsNullOrWhiteSpace(modelStr))
-        {
-            Die("No model found. Set 'let model = env(\"MCL_MODEL\", \"gpt-4o-mini\")' in the mission or add [providers.default] to forge.toml.");
-            return;
-        }
-
-        var apiKeyObj   = (object)apiKeyStr;
-        var provider    = providerStr;
-        var endpoint    = endpointStr;
-
-        var runner = TryBuildRunner(provider, apiKeyStr, modelStr, endpoint);
-        if (runner is null) return;
+        // Build runner per profile from forge.toml; fall back to let-binding config for "default".
+        var runners = BuildRunners(manifest, seedContext);
+        if (runners is null) return;
 
         var firstMission = ast.Declarations.OfType<MissionDeclaration>().FirstOrDefault();
         if (firstMission is null) { Die("No mission declaration found in mission file."); return; }
@@ -207,7 +186,7 @@ static Command BuildRunCommand()
 
         Console.Error.WriteLine($"Running mission '{firstMission.Name}'...");
 
-        var missionResult = await new PipelineRunner(runner).RunAsync(ast, expertDefs, options);
+        var missionResult = await new PipelineRunner(runners).RunAsync(ast, expertDefs, options);
 
         if (missionResult.Status == MissionStatus.Fail)
         {
@@ -436,31 +415,14 @@ static Command BuildServeCommand()
         try { serveManifest = ForgeTomlReader.TryRead(missionPath); }
         catch (ForgeTomlException ex) { Die(ex.Message); return; }
 
-        var serveProfile = serveManifest?.Providers.GetValueOrDefault("default");
+        var serveRunners = BuildRunners(serveManifest, seedContext);
+        if (serveRunners is null) return;
 
-        var serveApiKey  = GetContextString(seedContext, "apiKey")  ?? serveProfile?.ApiKey;
-        var serveModel   = GetContextString(seedContext, "model")   ?? serveProfile?.Model;
-        var provider     = GetContextString(seedContext, "provider") ?? serveProfile?.Provider ?? "openai";
-        var endpoint     = GetContextString(seedContext, "endpoint") ?? serveProfile?.Endpoint ?? string.Empty;
+        var defaultRunner = serveRunners.TryGetValue("default", out var dr)
+            ? dr
+            : serveRunners.Values.First();
 
-        if (string.IsNullOrWhiteSpace(serveApiKey))
-        {
-            Die("No API key found. Set 'let apiKey = env(\"MCL_API_KEY\")' in the mission or add [providers.default] to forge.toml.");
-            return;
-        }
-        if (string.IsNullOrWhiteSpace(serveModel))
-        {
-            Die("No model found. Set 'let model = env(\"MCL_MODEL\", \"gpt-4o-mini\")' in the mission or add [providers.default] to forge.toml.");
-            return;
-        }
-
-        var apiKeyObj = (object)serveApiKey;
-        var modelObj  = (object)serveModel;
-
-        var runner = TryBuildRunner(provider, serveApiKey, serveModel, endpoint);
-        if (runner is null) return;
-
-        var missionClient = new MissionChatClient(ast, expertDefs, runner);
+        var missionClient = new MissionChatClient(ast, expertDefs, defaultRunner);
         var app           = OaiServer.Build(missionClient, config.Id, config.Port);
 
         Console.Error.WriteLine($"forge serve — agent '{config.Id}' listening on http://0.0.0.0:{config.Port}");
@@ -543,20 +505,58 @@ static bool TryValidate(MclProgram ast, Dictionary<string, ExpertDefinition> exp
     catch (ExpertLoadException ex) { Die(ex.Message); return false; }
 }
 
-static IExpertRunner? TryBuildRunner(string provider, string apiKey, string model, string endpoint)
+// Builds the full runner dictionary from forge.toml profiles.
+// Falls back to let-binding context for the "default" runner if no forge.toml.
+static IReadOnlyDictionary<string, IExpertRunner>? BuildRunners(
+    ForgeManifest? manifest,
+    Dictionary<string, object> seedContext)
 {
-    if (!provider.Equals("openai", StringComparison.OrdinalIgnoreCase))
+    var runners = new Dictionary<string, IExpertRunner>(StringComparer.Ordinal);
+
+    // Build a runner per declared profile.
+    if (manifest?.Providers is { Count: > 0 } profiles)
     {
-        Die($"Unknown provider '{provider}'. Supported: openai");
-        return null;
+        foreach (var (name, profile) in profiles)
+        {
+            try { runners[name] = ProviderClientBuilder.Build(profile); }
+            catch (Exception ex) { Die($"Cannot initialise provider profile '{name}': {ex.Message}"); return null; }
+        }
     }
 
-    var options = new OpenAIClientOptions();
-    if (!string.IsNullOrWhiteSpace(endpoint))
-        options.Endpoint = new Uri(endpoint);
+    // If no "default" profile came from forge.toml, fall back to let-binding context.
+    if (!runners.ContainsKey("default"))
+    {
+        var defaultProfile = manifest?.Providers.GetValueOrDefault("default");
+        var apiKey   = GetContextString(seedContext, "apiKey")   ?? defaultProfile?.ApiKey;
+        var model    = GetContextString(seedContext, "model")    ?? defaultProfile?.Model;
+        var provider = GetContextString(seedContext, "provider") ?? defaultProfile?.Provider ?? "openai";
+        var endpoint = GetContextString(seedContext, "endpoint") ?? defaultProfile?.Endpoint ?? string.Empty;
 
-    var chatClient = new OpenAIClient(new ApiKeyCredential(apiKey), options).GetChatClient(model).AsIChatClient();
-    return new DirectExpertRunner(chatClient);
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            Die("No API key found. Add [providers.default] to forge.toml with apiKey = env(\"MCL_API_KEY\").");
+            return null;
+        }
+        if (string.IsNullOrWhiteSpace(model))
+        {
+            Die("No model found. Add [providers.default] to forge.toml with model = env(\"MCL_MODEL\", \"gpt-4o-mini\").");
+            return null;
+        }
+
+        try
+        {
+            runners["default"] = ProviderClientBuilder.Build(new ProviderProfile
+            {
+                Provider = provider,
+                Model    = model,
+                ApiKey   = apiKey,
+                Endpoint = string.IsNullOrWhiteSpace(endpoint) ? null : endpoint
+            });
+        }
+        catch (Exception ex) { Die($"Cannot initialise default provider: {ex.Message}"); return null; }
+    }
+
+    return runners;
 }
 
 static Dictionary<string, string>? ParseVars(string[] vars)
@@ -825,6 +825,100 @@ static Command BuildWebuiStopCommand()
     {
         await DockerCli.StopAndRemoveAsync("open-webui");
         AnsiConsole.MarkupLine("[green]✓[/] Open WebUI stopped");
+    });
+
+    return cmd;
+}
+
+// ---------------------------------------------------------------------------
+// forge provider
+
+static Command BuildProviderCommand()
+{
+    var providerCmd = new Command("provider", "Manage LLM provider profiles");
+    providerCmd.Add(BuildProviderListCommand());
+    providerCmd.Add(BuildProviderScaffoldCommand());
+    return providerCmd;
+}
+
+static Command BuildProviderListCommand()
+{
+    var cmd = new Command("list", "List all known LLM providers");
+    cmd.SetAction(_ =>
+    {
+        Console.WriteLine("Known providers:\n");
+        Console.WriteLine($"  {"NAME",-12} {"REQUIRED FIELDS",-30} NOTES");
+        Console.WriteLine($"  {"----",-12} {"---------------",-30} -----");
+        Console.WriteLine($"  {"openai",-12} {"apiKey, model",-30} Default OpenAI endpoint");
+        Console.WriteLine($"  {"anthropic",-12} {"apiKey, model",-30} Not yet available in this build");
+        Console.WriteLine($"  {"azure",-12} {"apiKey, model, endpoint",-30} Azure OpenAI Service");
+        Console.WriteLine($"  {"ollama",-12} {"model",-30} Local Ollama (no apiKey required)");
+        Console.WriteLine("\nRun 'forge provider scaffold <name>' to generate a forge.toml block.");
+    });
+    return cmd;
+}
+
+static Command BuildProviderScaffoldCommand()
+{
+    var nameArg  = new Argument<string>("name") { Description = "Provider name (openai, anthropic, azure, ollama)" };
+    var writeOpt = new Option<bool>("--write") { Description = "Append the block to forge.toml instead of printing it" };
+
+    var cmd = new Command("scaffold", "Generate a ready-to-paste forge.toml provider block");
+    cmd.Add(nameArg);
+    cmd.Add(writeOpt);
+
+    cmd.SetAction(async result =>
+    {
+        var name  = result.GetValue(nameArg)!.ToLowerInvariant();
+        var write = result.GetValue(writeOpt);
+
+        var block = name switch
+        {
+            "openai" => """
+                [providers.default]
+                provider = "openai"
+                model    = "gpt-4o-mini"         # or: gpt-4o, gpt-4-turbo
+                apiKey   = env("MCL_API_KEY")     # set MCL_API_KEY before running
+                # endpoint = "..."               # optional — omit for default OpenAI endpoint
+                """,
+            "anthropic" => """
+                [providers.default]
+                provider = "anthropic"
+                model    = "claude-sonnet-4-6"   # or: claude-opus-4-8, claude-haiku-4-5-20251001
+                apiKey   = env("ANTHROPIC_API_KEY")
+                """,
+            "azure" => """
+                [providers.default]
+                provider = "azure"
+                model    = "gpt-4o"
+                apiKey   = env("AZURE_OPENAI_API_KEY")
+                endpoint = "https://<your-resource>.openai.azure.com/openai/deployments/<deployment>/chat/completions?api-version=2024-02-01"
+                """,
+            "ollama" => """
+                [providers.default]
+                provider = "ollama"
+                model    = "llama3"              # any model pulled with 'ollama pull <name>'
+                endpoint = "http://localhost:11434/v1"  # omit to use this default
+                # no apiKey required for local Ollama
+                """,
+            _ => null
+        };
+
+        if (block is null)
+        {
+            Die($"Unknown provider '{name}'. Run 'forge provider list' to see known providers.");
+            return;
+        }
+
+        if (write)
+        {
+            await File.AppendAllTextAsync("forge.toml", $"\n{block}\n");
+            Console.WriteLine("Appended to forge.toml.");
+        }
+        else
+        {
+            Console.WriteLine(block);
+        }
     });
 
     return cmd;

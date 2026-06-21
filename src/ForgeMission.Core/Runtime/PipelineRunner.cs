@@ -5,8 +5,29 @@ using ForgeMission.Parser;
 
 namespace ForgeMission.Core.Runtime;
 
-public class PipelineRunner(IExpertRunner expertRunner)
+public class PipelineRunner
 {
+    private readonly IReadOnlyDictionary<string, IExpertRunner> _runners;
+
+    public PipelineRunner(IReadOnlyDictionary<string, IExpertRunner> runners)
+    {
+        _runners = runners;
+    }
+
+    // Convenience: single default runner — keeps existing tests and callers unchanged.
+    public PipelineRunner(IExpertRunner defaultRunner)
+        : this(new Dictionary<string, IExpertRunner>(StringComparer.Ordinal) { ["default"] = defaultRunner }) { }
+
+    private IExpertRunner ResolveRunner(string? profileName)
+    {
+        var key = profileName ?? "default";
+        return _runners.TryGetValue(key, out var runner)
+            ? runner
+            : throw new InvalidOperationException(
+                $"Provider profile '{key}' not found. " +
+                $"Add [providers.{key}] to forge.toml. Available: {string.Join(", ", _runners.Keys)}");
+    }
+
     public async Task<MissionResult> RunAsync(
         Program ast,
         Dictionary<string, ExpertDefinition> experts,
@@ -112,7 +133,7 @@ public class PipelineRunner(IExpertRunner expertRunner)
         foreach (var binding in step.Context)
             context[binding.Key] = ContextBuilder.ResolveBindingValue(binding.Value, context);
 
-        // step.Using selects a provider profile — handled by Spoke 5 (provider profiles).
+        var runner = ResolveRunner(step.Using);
 
         if (options.StepWriter is { } sw)
             await sw.WriteLineAsync($"→ {step.ExpertName}...");
@@ -121,7 +142,7 @@ public class PipelineRunner(IExpertRunner expertRunner)
         if (options.StepWriter is not null || options.ContentWriter is not null)
         {
             var sb = new StringBuilder();
-            await foreach (var chunk in expertRunner.StreamAsync(expert, context, ct))
+            await foreach (var chunk in runner.StreamAsync(expert, context, ct))
             {
                 if (options.StepWriter is { } sw2)
                     await sw2.WriteAsync(chunk);
@@ -135,7 +156,7 @@ public class PipelineRunner(IExpertRunner expertRunner)
         }
         else
         {
-            envelope = await expertRunner.RunAsync(expert, context, ct);
+            envelope = await runner.RunAsync(expert, context, ct);
         }
 
         context["output"] = envelope.Text;
