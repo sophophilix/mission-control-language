@@ -272,6 +272,106 @@ mission BuildOperatorDesign(goal) = {
 
 ---
 
+## Mission composition
+
+A mission is an expert at the interface level — it takes input and produces output. The caller never knows or cares whether a step is a single LLM call or a full sub-pipeline. No new syntax required.
+
+```fsharp
+mission DesignMode(input) loop(2) = {
+    Architect
+    -> CriticalReviewer
+    -> Synthesiser
+    -> QualityJudge
+}
+
+mission TaskMode(input) = {
+    Developer
+    -> Tester
+}
+
+mission SDLCAgent(input) = {
+    Classifier
+    -> DesignMode(input: input) when(mode: "design")
+    -> TaskMode(input: input)   when(mode: "task")
+    -> Planner                  when(else)
+}
+```
+
+`DesignMode` and `TaskMode` are independently runnable missions. `SDLCAgent` composes them behind a routing layer — the routing logic and the reasoning logic stay in separate, independently testable units.
+
+Key properties:
+- **Explicit binding only** — `DesignMode(input: input)` maps the caller's context into the child. Parent runtime state never leaks into the sub-mission.
+- **Failure propagates** — a failing sub-mission fails the parent step immediately, surfacing the inner reason.
+- **`loop(N)` inside sub-missions** retries independently of the parent loop.
+- **Arbitrarily deep** — missions compose into missions with no depth limit.
+
+Run a sub-mission directly: `forge run --mission DesignMode`
+
+See [`missions/sdlc-agent/`](missions/sdlc-agent/) — the full example above, runnable today.
+
+---
+
+## Deterministic expert gates (`kind: rule`)
+
+Not every check needs an LLM. `kind: rule` evaluates a declarative expression against the prior step's output — in-process, zero latency, zero tokens.
+
+```markdown
+---
+name: WordCountGate
+kind: rule
+check: word_count >= 50 and markdown_has_heading
+onFail: Response too short and missing a heading. Expand to at least 50 words with a ## heading.
+---
+```
+
+On failure, `onFail` is written to `{{feedback}}` and injected into the next loop iteration automatically. The drafter reads it and self-corrects — no plumbing required.
+
+```fsharp
+mission Draft(topic) loop(3) = {
+    Drafter        // sees {{feedback}} from prior attempt
+    -> WordCountGate  // kind:rule — instant, no LLM call
+}
+```
+
+**Available evaluators:**
+
+| Evaluator | Form | Example |
+|-----------|------|---------|
+| `word_count` | `word_count op N` | `word_count >= 50` |
+| `char_count` | `char_count op N` | `char_count < 500` |
+| `line_count` | `line_count op N` | `line_count >= 3` |
+| `sentence_count` | `sentence_count op N` | `sentence_count >= 2` |
+| `contains` | `contains "text"` | `contains "## Summary"` |
+| `starts_with` | `starts_with "text"` | `starts_with "{"` |
+| `ends_with` | `ends_with "text"` | `ends_with "}"` |
+| `no_match` | `no_match "pattern"` | `no_match "TODO\|FIXME"` |
+| `contains_pattern` | `contains_pattern "pattern"` | `contains_pattern "\d{4}-\d{2}-\d{2}"` |
+| `json_parseable` | `json_parseable` | `json_parseable` |
+| `xml_parseable` | `xml_parseable` | `xml_parseable` |
+| `markdown_has_heading` | `markdown_has_heading` | `markdown_has_heading` |
+
+Multiple clauses joined with `and` must all pass.
+
+See [`missions/rule-gate-demo/`](missions/rule-gate-demo/) for a working example.
+
+---
+
+## HTTP expert kind (`kind: http`)
+
+Experts can delegate to an external service. The context bag is POSTed as JSON; the service returns a `StepEnvelope` (`{"text": "...", "status": "pass"}`).
+
+```markdown
+---
+name: Scorer
+kind: http
+endpoint: https://api.example.com/score
+---
+```
+
+Useful for calling existing microservices, scoring models, or any non-LLM check that lives outside the pipeline binary.
+
+---
+
 ## Pass / fail
 
 Every step passes by default. Only experts declared as judges can stop the pipeline. Add `role: judge` to the expert's frontmatter to opt in:
@@ -300,6 +400,7 @@ Injected by the runtime. Cannot be overridden.
 | `{{attempt}}` | Current loop iteration, 1-based. Always `1` without `loop`. |
 | `{{max_loops}}` | Declared loop cap. Always `1` without `loop`. |
 | `{{ExpertName}}` | Output from a named step in a `parallel {}` block. |
+| `{{feedback}}` | Failure message from the prior loop attempt's judge or rule gate. Empty string on attempt 1. Reference it in any drafter prompt to self-correct on retry. |
 
 ---
 
@@ -341,6 +442,8 @@ forge webui stop                              // stop Open WebUI
 | [`loop-demo-naive`](missions/loop-demo-naive/) | Same question as loop-demo, no retry — shows the contrast |
 | [`when-routing`](missions/when-routing/) | `when(output: "x")` — classifier routes to the right specialist |
 | [`parallel-synthesis`](missions/parallel-synthesis/) | `parallel {}` — three independent analysts, one synthesiser |
+| [`rule-gate-demo`](missions/rule-gate-demo/) | `kind: rule` — deterministic word-count gate with loop feedback |
+| [`sdlc-agent`](missions/sdlc-agent/) | Mission composition — Classifier routes to `DesignMode` or `TaskMode` sub-missions |
 
 ---
 
@@ -367,10 +470,12 @@ forge init && forge run     # drafter → critic → reviser → judge
 Or try the showcase missions:
 
 ```bash
-cd missions/when-routing      # conditional routing via when()
-cd missions/parallel-synthesis # parallel experts + synthesiser
-cd missions/loop-demo          # quality-convergence loop with retry
-forge init && forge run        # same command for all of them
+cd missions/when-routing        # conditional routing via when()
+cd missions/parallel-synthesis  # parallel experts + synthesiser
+cd missions/loop-demo           # quality-convergence loop with retry
+cd missions/rule-gate-demo      # deterministic rule gate + loop feedback
+cd missions/sdlc-agent          # mission composition — sub-missions as steps
+forge init && forge run         # same command for all of them
 ```
 
 Provider and model are configured in each mission's `forge.toml`. To switch to Anthropic, swap the `[providers.default]` block — the commented alternative is already in each example file.
