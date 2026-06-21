@@ -1,4 +1,6 @@
 using System.ClientModel;
+using Anthropic;
+using Anthropic.Core;
 using ForgeMission.Core.Adapters;
 using ForgeMission.Core.Manifest;
 using ForgeMission.Core.Runtime;
@@ -17,10 +19,7 @@ static class ProviderClientBuilder
         {
             "openai" or "azure" => BuildOpenAiClient(profile),
             "ollama"            => BuildOllamaClient(profile),
-            "anthropic"         => throw new NotSupportedException(
-                "Anthropic client support is not yet available in this build. " +
-                "Use provider = \"openai\" with an OpenAI-compatible endpoint, " +
-                "or set ANTHROPIC_BASE_URL to route through a compatible proxy."),
+            "anthropic"         => BuildAnthropicClient(profile),
             _ => throw new InvalidOperationException($"Unknown provider '{profile.Provider}'")
         };
 
@@ -44,5 +43,13 @@ static class ProviderClientBuilder
         return new OpenAIClient(new ApiKeyCredential("ollama"), options)
             .GetChatClient(p.Model)
             .AsIChatClient();
+    }
+
+    private static IChatClient BuildAnthropicClient(ProviderProfile p)
+    {
+        var options = new ClientOptions { ApiKey = p.ApiKey ?? string.Empty };
+        if (!string.IsNullOrWhiteSpace(p.Endpoint))
+            options = options with { BaseUrl = p.Endpoint };
+        return new AnthropicClient(options).AsIChatClient(p.Model);
     }
 }

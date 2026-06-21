@@ -850,7 +850,7 @@ static Command BuildProviderListCommand()
         Console.WriteLine($"  {"NAME",-12} {"REQUIRED FIELDS",-30} NOTES");
         Console.WriteLine($"  {"----",-12} {"---------------",-30} -----");
         Console.WriteLine($"  {"openai",-12} {"apiKey, model",-30} Default OpenAI endpoint");
-        Console.WriteLine($"  {"anthropic",-12} {"apiKey, model",-30} Not yet available in this build");
+        Console.WriteLine($"  {"anthropic",-12} {"apiKey, model",-30} Anthropic (Claude models)");
         Console.WriteLine($"  {"azure",-12} {"apiKey, model, endpoint",-30} Azure OpenAI Service");
         Console.WriteLine($"  {"ollama",-12} {"model",-30} Local Ollama (no apiKey required)");
         Console.WriteLine("\nRun 'forge provider scaffold <name>' to generate a forge.toml block.");
