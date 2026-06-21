@@ -390,12 +390,34 @@ clause := evaluator op number       # numeric comparison
         | evaluator "string"        # string argument
         | evaluator                 # nullary
 
-evaluator  := word_count | char_count | line_count | sentence_count
-            | contains | starts_with | ends_with | no_match | contains_pattern
-            | json_parseable | xml_parseable | markdown_has_heading
-
-op         := '<' | '>' | '<=' | '>=' | '==' | '!='
+op     := '<' | '>' | '<=' | '>=' | '==' | '!='
 ```
+
+Multiple clauses joined with `and` must all pass. There is no `or`.
+
+**Evaluator reference:**
+
+| Evaluator | Form | Measures | Example |
+|-----------|------|----------|---------|
+| `word_count` | `word_count op N` | Number of whitespace-delimited tokens | `word_count >= 50` |
+| `char_count` | `char_count op N` | Total character count (including whitespace) | `char_count < 500` |
+| `line_count` | `line_count op N` | Number of newline-delimited lines | `line_count >= 3` |
+| `sentence_count` | `sentence_count op N` | Heuristic count of sentences (`.`, `!`, `?` followed by whitespace or end) | `sentence_count >= 2` |
+| `contains` | `contains "substring"` | True if substring is present (case-sensitive) | `contains "## Summary"` |
+| `starts_with` | `starts_with "prefix"` | True if text begins with prefix | `starts_with "{"` |
+| `ends_with` | `ends_with "suffix"` | True if text ends with suffix | `ends_with "}"` |
+| `no_match` | `no_match "pattern"` | True if regex pattern is **absent** | `no_match "TODO\|FIXME"` |
+| `contains_pattern` | `contains_pattern "pattern"` | True if regex pattern is present | `contains_pattern "\d{4}-\d{2}-\d{2}"` |
+| `json_parseable` | `json_parseable` | True if output parses as valid JSON | `json_parseable` |
+| `xml_parseable` | `xml_parseable` | True if output parses as valid XML | `xml_parseable` |
+| `markdown_has_heading` | `markdown_has_heading` | True if any line starts with `#` | `markdown_has_heading` |
+
+Deferred (throw `RuleEvaluationException` if used):
+
+| Evaluator | Planned capability |
+|-----------|--------------------|
+| `reading_level` | Flesch-Kincaid grade level comparison |
+| `schema_valid` | JSON Schema validation against a named schema |
 
 Examples:
 
@@ -404,6 +426,7 @@ check: word_count >= 50
 check: json_parseable
 check: word_count > 100 and contains_pattern "\d+"
 check: markdown_has_heading and word_count > 200
+check: starts_with "{" and ends_with "}" and json_parseable
 ```
 
 **`onFail`** is the feedback message written to `context["feedback"]` when the check fails. It is injected into the next loop iteration so the Drafter can reference `{{feedback}}` in its prompt and self-correct. If omitted, the runtime uses `"Rule check failed."`.
