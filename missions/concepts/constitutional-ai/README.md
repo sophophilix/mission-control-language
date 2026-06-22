@@ -18,6 +18,13 @@ In MCL, the `ConstitutionalCritic/expert.md` file IS the constitution. The princ
 are numbered markdown items in the body of the expert. Changing the principles means
 editing a markdown file — no code changes, no fine-tuning, no API access required.
 
+**Scope:** this mission demonstrates the constitutional critique-revise pattern —
+the inference-time loop described in Section 3 of the paper. It does not implement
+the full Constitutional AI / RLAIF system, which additionally involves reinforcement
+learning from the AI's own feedback to fine-tune model weights. The critique-revise
+loop is the readable, runnable core of the idea; the RL training stage requires
+large-scale infrastructure outside the scope of inference-time composition.
+
 ## 2. References
 
 **Papers:**

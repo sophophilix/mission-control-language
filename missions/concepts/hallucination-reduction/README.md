@@ -10,7 +10,10 @@ The model cannot verify its own output against external rules; it can only gener
 
 The neurosymbolic fix is to add a symbolic layer that checks the LLM's output against
 explicit deterministic rules before accepting it. If the check fails, the specific
-violation is sent back to the LLM so it can correct the exact problem.
+violation is sent back to the LLM so it can correct the exact problem. The symbolic
+layer enforces *structural and domain constraints* — required sections, format, word
+counts, expected terms. It does not verify factual truth unless those properties can
+be reduced to explicit rules backed by a trusted source of truth.
 
 As Marcus & Belle (AAAI 2025) frame it: *"The future is neuro-symbolic"* — neural
 generation for fluency and content, symbolic rules for verifiability and constraint
@@ -67,8 +70,8 @@ check: 'markdown_has_heading and word_count >= 150 and contains "conclusion"'
 ```
 
 When any clause fails, `onFail` names the specific missing requirement and the
-loop retries. The LLM is only responsible for generation; the rule is responsible
-for correctness. Neither alone is as reliable as both together.
+loop retries. The LLM is responsible for generation and content; the rule is
+responsible for structural correctness. Neither alone is as reliable as both together.
 
 ### Example A — the RLSF symbolic feedback mechanism
 
@@ -82,8 +85,11 @@ check: markdown_has_heading and word_count >= 150 and contains "conclusion"
 ```
 
 These are symbolic rules — not estimates, not heuristics, not LLM opinions. They are
-guaranteed to be correct. When a check fails, the `onFail` message names exactly what
-was missing. The Drafter receives this specific feedback and knows exactly what to fix.
+binary and predictable: unlike LLM self-evaluation, a word count is a word count.
+When a check fails, the `onFail` message names exactly what was missing. The Drafter
+receives this specific feedback and knows exactly what to fix. What the rules do not
+check: whether the LLM's claims about SQL and NoSQL are factually accurate. Symbolic
+checks reduce classes of structural errors; they do not eliminate hallucinations.
 
 This is the RLSF mechanism: symbolic certificates as correctness signals. The LLM is
 not asked to self-evaluate (which is unreliable) — it is told by a deterministic rule

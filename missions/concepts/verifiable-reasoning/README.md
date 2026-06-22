@@ -70,7 +70,9 @@ numbered chain. `StepVerifier` (`kind: rule`) checks it deterministically —
 if the chain lacks `"Step 1"`, `"Answer:"`, or enough sentences, the loop
 retries with the exact failure named in `{{feedback}}`. `ConclusionWriter`
 only runs after the chain passes — the stakeholder output is guaranteed to
-have come from a verified chain.
+have come from a structurally verified chain (numbered steps present, minimum
+length met, conclusion marker present). The rules verify chain structure, not
+the mathematical or semantic validity of the reasoning itself.
 
 ### Example A — AlphaGeometry's generate-verify mechanism
 
@@ -86,9 +88,13 @@ The `StepVerifier` applies symbolic checks to the reasoning chain:
 check: contains "Answer:" and sentence_count >= 5 and contains "Step 1"
 ```
 
-These rules are deterministic — they check verifiable structural properties of the
-reasoning chain, not its content. If the chain fails, `onFail` names exactly what is
-missing, and the `ReasoningProposer` retries with that specific feedback.
+These rules are deterministic — they check structural properties of the reasoning
+chain (format markers, length, required sections), not whether the reasoning is
+mathematically correct. A domain with a trusted verifier (a symbolic solver, a
+calculation engine, a compliance rule set) can check deeper properties; MCL's
+`kind: rule` is the hook for that integration. If the chain fails, `onFail` names
+exactly what is missing, and the `ReasoningProposer` retries with that specific
+feedback.
 
 The mission uses `loop(3)`: if the StepVerifier fails, the pipeline restarts from
 `ProblemFramer`. The Drafter sees `{{feedback}}` from the last failed verification
